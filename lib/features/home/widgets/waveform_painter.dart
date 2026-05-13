@@ -1,32 +1,41 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
+import '../../../shared/theme/signal_fm_theme.dart';
+
 // ─────────────────────────────────────────────────────────────────────────────
-// WaveformDisplay  (Phase 3 upgrade)
+// WaveformDisplay  (Phase 5)
 //
-// Changes from Phase 2:
-//   • Accepts [waveformColors] — a 3-stop per-session color list.
-//   • Draws mirrored bars (above + below centre line) for a richer look.
-//   • Adds a soft glow pass under the bars using a wider, transparent rect.
-//   • Playhead window: bars ±4 positions from the current head are
-//     highlighted at full opacity; the rest fade smoothly.
-//   • Animation speed is slightly faster (1 200 ms) for a more live feel.
+// New: accepts [marketState] which modifies:
+//   • animSpeedScale → AnimationController duration (faster = more energy)
+//   • peakScale      → maximum bar height multiplier
+//   • breatheScale   → idle oscillation amplitude
+//   • glowScale      → glow pass opacity
 //
-// No external packages. Pure CustomPainter + AnimationController.
+// Session character table:
+//   London Open   → warm, medium breathing, smooth peaks
+//   NY Momentum   → fast, high peaks, electric glow
+//   Tokyo Night   → slow, low peaks, gentle drift
+//   Deep Focus    → minimal motion, ultra-fine peaks, precise
+//   Recovery Mode → very slow, soft rounded bars, dim glow
+//
+// Market state then layers on top:
+//   Panic / Breakout → faster, sharper, brighter
+//   Calm / Risk-Off  → slower, shorter, dimmer
+//   Recovery         → softest possible motion
 // ─────────────────────────────────────────────────────────────────────────────
 
 class WaveformDisplay extends StatefulWidget {
   const WaveformDisplay({
     required this.accentColor,
     required this.waveformColors,
+    required this.marketState,
     super.key,
   });
 
   final Color accentColor;
-
-  /// 3-stop color list from SessionMode.waveformColors.
-  /// [0] = base, [1] = mid, [2] = peak.
   final List<Color> waveformColors;
+  final MarketStateData marketState;
 
   @override
   State<WaveformDisplay> createState() => _WaveformDisplayState();
@@ -34,16 +43,34 @@ class WaveformDisplay extends StatefulWidget {
 
 class _WaveformDisplayState extends State<WaveformDisplay>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
+  late AnimationController _ctrl;
+
+  // Base duration: 1400 ms. Divided by animSpeedScale.
+  static const int _kBaseDurationMs = 1400;
 
   @override
   void initState() {
     super.initState();
     _ctrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1200),
+      duration: _duration(),
     )..repeat();
   }
+
+  @override
+  void didUpdateWidget(WaveformDisplay old) {
+    super.didUpdateWidget(old);
+    // If speed scale changed, smoothly adjust duration
+    if (old.marketState.animSpeedScale != widget.marketState.animSpeedScale) {
+      _ctrl.duration = _duration();
+      if (!_ctrl.isAnimating) _ctrl.repeat();
+    }
+  }
+
+  Duration _duration() => Duration(
+        milliseconds:
+            (_kBaseDurationMs / widget.marketState.animSpeedScale).round(),
+      );
 
   @override
   void dispose() {
@@ -59,6 +86,9 @@ class _WaveformDisplayState extends State<WaveformDisplay>
         painter: _WaveformPainter(
           waveformColors: widget.waveformColors,
           animValue: _ctrl.value,
+          peakScale: widget.marketState.peakScale,
+          breatheScale: widget.marketState.breatheScale,
+          glowScale: widget.marketState.glowScale,
         ),
         size: const Size(double.infinity, 64),
       ),
@@ -74,17 +104,21 @@ class _WaveformPainter extends CustomPainter {
   _WaveformPainter({
     required this.waveformColors,
     required this.animValue,
+    required this.peakScale,
+    required this.breatheScale,
+    required this.glowScale,
   });
 
   final List<Color> waveformColors;
   final double animValue;
+  final double peakScale;
+  final double breatheScale;
+  final double glowScale;
 
-  // 48 bars — enough density without being too small on mobile
   static const int _kCount = 48;
   static const double _kGap = 2.5;
-  static const double _kMinRatio = 0.08;
+  static const double _kMinRatio = 0.06;
 
-  // Pre-baked bar height ratios — realistic waveform shape
   static const List<double> _kRatios = [
     0.22, 0.38, 0.50, 0.34, 0.66, 0.48, 0.74, 0.42,
     0.86, 0.60, 0.72, 0.45, 0.82, 0.68, 0.92, 0.55,
@@ -94,63 +128,65 @@ class _WaveformPainter extends CustomPainter {
     0.42, 0.36, 0.50, 0.44, 0.62, 0.38, 0.56, 0.30,
   ];
 
-  // Resolve a bar color by interpolating across the 3-stop waveformColors list.
   Color _barColor(double ratio, double opacity) {
     final c0 = waveformColors[0];
     final c1 = waveformColors[1];
     final c2 = waveformColors[2];
-
     final Color c = ratio < 0.5
         ? Color.lerp(c0, c1, ratio / 0.5)!
         : Color.lerp(c1, c2, (ratio - 0.5) / 0.5)!;
-
-    return c.withOpacity(opacity);
+    return c.withOpacity(opacity.clamp(0.0, 1.0));
   }
 
   @override
   void paint(Canvas canvas, Size size) {
     final double barW = (size.width - _kGap * (_kCount - 1)) / _kCount;
     final double halfH = size.height / 2;
-    // Tallest bar can reach 90 % of half-height in each direction
-    final double maxHalf = halfH * 0.90;
+    // peakScale modifies the maximum reach — panic = taller, calm = shorter
+    final double maxHalf = halfH * 0.90 * peakScale.clamp(0.4, 1.4);
 
-    // Playhead advances linearly across bars
     final int head = (animValue * _kCount).floor() % _kCount;
-    const int highlight = 5; // bars on each side of head at full opacity
+    const int highlight = 5;
 
     for (int i = 0; i < _kCount; i++) {
       final double x = i * (barW + _kGap);
 
-      // Breathing offset — each bar oscillates independently
+      // breatheScale controls idle oscillation amplitude
+      final double breatheAmp = 0.07 * breatheScale.clamp(0.3, 1.5);
       final double breathe =
-          math.sin(animValue * 2 * math.pi + i * 0.42) * 0.07;
+          math.sin(animValue * 2 * math.pi + i * 0.42) * breatheAmp;
+
       final double ratio = (_kRatios[i] + breathe).clamp(_kMinRatio, 1.0);
 
-      // Distance-based opacity
       final int dist = (i - head).abs();
       final double opacity = dist <= highlight
-          ? 1.0 - (dist / (highlight + 1)) * 0.35
-          : 0.22 + 0.20 * ratio; // dim but still visible
+          ? (1.0 - (dist / (highlight + 1)) * 0.30).clamp(0.0, 1.0)
+          : (0.20 + 0.18 * ratio).clamp(0.0, 1.0);
 
-      final double halfBar = math.max(2.0, ratio * maxHalf);
+      final double halfBar = math.max(1.5, ratio * maxHalf);
 
-      // ── Glow pass (wide, very transparent) ──────────────────────────
-      if (dist <= highlight + 2) {
+      // ── Glow pass ────────────────────────────────────────────────────
+      if (dist <= highlight + 2 && glowScale > 0.3) {
+        final glowOpacity = (opacity * 0.18 * glowScale).clamp(0.0, 0.55);
         final glowPaint = Paint()
           ..style = PaintingStyle.fill
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4)
-          ..color = _barColor(ratio, opacity * 0.18);
+          ..maskFilter = MaskFilter.blur(
+            BlurStyle.normal,
+            (3.5 * glowScale).clamp(1.0, 8.0),
+          )
+          ..color = _barColor(ratio, glowOpacity);
 
         canvas.drawRRect(
           RRect.fromRectAndRadius(
-            Rect.fromLTWH(x - 1, halfH - halfBar - 1, barW + 2, halfBar * 2 + 2),
+            Rect.fromLTWH(
+                x - 1, halfH - halfBar - 1, barW + 2, halfBar * 2 + 2),
             const Radius.circular(4),
           ),
           glowPaint,
         );
       }
 
-      // ── Upper bar (above centre) ─────────────────────────────────────
+      // ── Upper bar ────────────────────────────────────────────────────
       final barPaint = Paint()
         ..style = PaintingStyle.fill
         ..color = _barColor(ratio, opacity);
@@ -163,9 +199,9 @@ class _WaveformPainter extends CustomPainter {
         barPaint,
       );
 
-      // ── Lower bar (mirror, 60 % height for asymmetry) ────────────────
+      // ── Lower mirror (60 % — asymmetric) ─────────────────────────────
       final double lowerH = halfBar * 0.60;
-      barPaint.color = _barColor(ratio, opacity * 0.55);
+      barPaint.color = _barColor(ratio, opacity * 0.50);
       canvas.drawRRect(
         RRect.fromRectAndRadius(
           Rect.fromLTWH(x, halfH, barW, lowerH),
@@ -179,5 +215,8 @@ class _WaveformPainter extends CustomPainter {
   @override
   bool shouldRepaint(_WaveformPainter old) =>
       old.animValue != animValue ||
+      old.peakScale != peakScale ||
+      old.breatheScale != breatheScale ||
+      old.glowScale != glowScale ||
       old.waveformColors[0] != waveformColors[0];
 }

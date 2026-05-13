@@ -5,49 +5,37 @@ import 'live_analytics_strip.dart';
 import 'waveform_painter.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// AlbumPlayerCard
+// AlbumPlayerCard  (Phase 5)
 //
-// RULE: this widget NEVER returns Expanded at its root.
-// The parent (_WideLayout) is responsible for wrapping it in Expanded(flex:2).
-// Internally, content is always a scrollable Column — no Expanded child
-// of a Row/Column can appear at the widget's own root level.
-//
-// Layout strategy (both paths)
-// ─────────────────────────────
-//   AnimatedContainer            ← card shell
-//     └─ SingleChildScrollView   ← prevents overflow on small screens
-//          └─ Column (min)       ← intrinsic height always
-//               └─ [content]
-//
-// Art is a fixed pixel circle (180 px mobile, 200 px wide).
-// No Expanded, no AspectRatio — both require a bounded parent height which
-// SingleChildScrollView cannot provide.
+// Changes from Phase 3:
+//   • Accepts [marketState] and passes it to WaveformDisplay.
+//   • Card box-shadow blurRadius / spreadRadius scale with
+//     marketState.shadowScale for atmosphere intensity.
+//   • Play button glow scales with marketState.glowScale.
+//   • No structural layout changes — Expanded rule intact.
 // ─────────────────────────────────────────────────────────────────────────────
 
 class AlbumPlayerCard extends StatelessWidget {
   const AlbumPlayerCard({
     required this.mode,
+    required this.marketState,
     this.scrollable = false,
     super.key,
   });
 
   final SessionMode mode;
-
-  /// [scrollable] = true  → mobile (intrinsic height, 180 px art).
-  /// [scrollable] = false → wide   (fills Expanded parent, 200 px art).
-  /// Either way this widget itself never returns Expanded.
+  final MarketStateData marketState;
   final bool scrollable;
 
   @override
   Widget build(BuildContext context) {
     final double artSize = scrollable ? 180.0 : 200.0;
+    final double shadowBlur = 42 * marketState.shadowScale;
+    final double shadowSpread = 2 * marketState.shadowScale;
 
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 380),
+      duration: const Duration(milliseconds: 420),
       curve: Curves.easeOut,
-      // On the wide path the parent Expanded(flex:2) provides height;
-      // setting height:infinity makes the card fill it.
-      // On mobile the ScrollView parent sizes us intrinsically.
       height: scrollable ? null : double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -57,8 +45,8 @@ class AlbumPlayerCard extends StatelessWidget {
         boxShadow: [
           BoxShadow(
             color: mode.accentGlow,
-            blurRadius: 42,
-            spreadRadius: 2,
+            blurRadius: shadowBlur,
+            spreadRadius: shadowSpread,
             offset: const Offset(0, 6),
           ),
         ],
@@ -68,21 +56,21 @@ class AlbumPlayerCard extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // ── Album art (fixed size — no Expanded / AspectRatio) ────────
             _AlbumArt(mode: mode, size: artSize),
 
             const SizedBox(height: 18),
 
-            // ── Session title ─────────────────────────────────────────────
+            // Title
             AnimatedSwitcher(
-              duration: const Duration(milliseconds: 320),
+              duration: const Duration(milliseconds: 340),
               transitionBuilder: (child, anim) => FadeTransition(
                 opacity: anim,
                 child: SlideTransition(
                   position: Tween<Offset>(
-                    begin: const Offset(0, 0.15),
+                    begin: const Offset(0, 0.12),
                     end: Offset.zero,
-                  ).animate(anim),
+                  ).animate(CurvedAnimation(
+                      parent: anim, curve: Curves.easeOut)),
                   child: child,
                 ),
               ),
@@ -102,7 +90,7 @@ class AlbumPlayerCard extends StatelessWidget {
 
             const SizedBox(height: 4),
 
-            // ── Session subtitle ──────────────────────────────────────────
+            // Subtitle
             AnimatedSwitcher(
               duration: const Duration(milliseconds: 260),
               child: Text(
@@ -119,23 +107,23 @@ class AlbumPlayerCard extends StatelessWidget {
 
             const SizedBox(height: 16),
 
-            // ── Waveform ──────────────────────────────────────────────────
+            // Waveform — now receives marketState
             SizedBox(
               height: 60,
               child: WaveformDisplay(
                 accentColor: mode.primaryColor,
                 waveformColors: mode.waveformColors,
+                marketState: marketState,
               ),
             ),
 
             const SizedBox(height: 16),
 
-            // ── Player controls ───────────────────────────────────────────
-            _PlayerControls(mode: mode),
+            // Controls — play button glow scales with market state
+            _PlayerControls(mode: mode, marketState: marketState),
 
             const SizedBox(height: 18),
 
-            // ── Live analytics ────────────────────────────────────────────
             LiveAnalyticsStrip(mode: mode),
 
             const SizedBox(height: 4),
@@ -147,12 +135,11 @@ class AlbumPlayerCard extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// _AlbumArt — fixed pixel circle, no Expanded, no AspectRatio
+// _AlbumArt
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _AlbumArt extends StatelessWidget {
   const _AlbumArt({required this.mode, required this.size});
-
   final SessionMode mode;
   final double size;
 
@@ -160,7 +147,7 @@ class _AlbumArt extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 400),
+        duration: const Duration(milliseconds: 420),
         curve: Curves.easeOut,
         width: size,
         height: size,
@@ -201,11 +188,16 @@ class _AlbumArt extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _PlayerControls extends StatelessWidget {
-  const _PlayerControls({required this.mode});
+  const _PlayerControls({required this.mode, required this.marketState});
   final SessionMode mode;
+  final MarketStateData marketState;
 
   @override
   Widget build(BuildContext context) {
+    // Glow intensity on the play button scales with market state
+    final double glowBlur = (20 * marketState.glowScale).clamp(8.0, 40.0);
+    final double glowOpacity = (0.45 * marketState.glowScale).clamp(0.15, 0.80);
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -213,38 +205,30 @@ class _PlayerControls extends StatelessWidget {
           icon: Icons.skip_previous_rounded,
           color: mode.onBackgroundMuted,
           size: 32,
-          onTap: () {},
         ),
 
         const SizedBox(width: 24),
 
-        GestureDetector(
-          onTap: () {},
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 350),
-            width: 62,
-            height: 62,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(
-                colors: [mode.primaryColor, mode.secondaryColor],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 420),
+          width: 62,
+          height: 62,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: LinearGradient(
+              colors: [mode.primaryColor, mode.secondaryColor],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: mode.primaryColor.withOpacity(glowOpacity),
+                blurRadius: glowBlur,
+                spreadRadius: 1,
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: mode.primaryColor.withOpacity(0.45),
-                  blurRadius: 20,
-                  spreadRadius: 1,
-                ),
-              ],
-            ),
-            child: const Icon(
-              Icons.pause_rounded,
-              color: Colors.white,
-              size: 30,
-            ),
+            ],
           ),
+          child: const Icon(Icons.pause_rounded, color: Colors.white, size: 30),
         ),
 
         const SizedBox(width: 24),
@@ -253,7 +237,6 @@ class _PlayerControls extends StatelessWidget {
           icon: Icons.skip_next_rounded,
           color: mode.onBackgroundMuted,
           size: 32,
-          onTap: () {},
         ),
       ],
     );
@@ -265,19 +248,13 @@ class _GhostButton extends StatelessWidget {
     required this.icon,
     required this.color,
     required this.size,
-    required this.onTap,
   });
-
   final IconData icon;
   final Color color;
   final double size;
-  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Icon(icon, size: size, color: color),
-    );
+    return Icon(icon, size: size, color: color);
   }
 }

@@ -52,7 +52,7 @@ class MarketStateData {
   final String aiDjMessage;
 }
 
-class MarketStates {
+class SignalFmSessions {
   static const MarketStateData calm = MarketStateData(
     label: 'Calm',
     glowScale: 0.6,

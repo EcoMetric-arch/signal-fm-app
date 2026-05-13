@@ -3,7 +3,9 @@ import 'package:flutter/services.dart';
 
 import '../../shared/theme/signal_fm_theme.dart';
 import '../../shared/widgets/app_breakpoints.dart';
+import 'widgets/ai_dj_bar.dart';
 import 'widgets/album_player_card.dart';
+import 'widgets/atmosphere_painter.dart';
 import 'widgets/btc_strip.dart';
 import 'widgets/fear_greed_panel.dart';
 import 'widgets/quick_modes_row.dart';
@@ -11,18 +13,22 @@ import 'widgets/session_modes_panel.dart';
 import 'widgets/signal_header.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// HomePage  (Phase 3)
+// HomePage  (Phase 5)
 //
-// Responsive strategy (via LayoutBuilder at the body level):
-//   < 600 px  — _MobileLayout  : single scrollable column, compact header
-//   ≥ 600 px  — _WideLayout    : two-panel row (player left, market right)
+// New additions:
+//   • MarketStateData _marketState — cycles through states via a demo button
+//     in the header area (long-press BTC strip to advance state).
+//     In Phase 6 this comes from a real data provider.
+//   • AtmosphereLayer — full-screen ambient background in a Stack.
+//   • AiDjBar — ambient AI readout above the bottom nav.
+//   • marketState passed down to AlbumPlayerCard → WaveformDisplay.
 //
-// Session transitions:
-//   • Background: TweenAnimationBuilder interpolates between two Colors so
-//     the entire background cross-fades smoothly (AnimatedContainer can't
-//     animate between arbitrary Colors reliably on all Flutter versions).
-//   • All child cards use their own AnimatedContainer / AnimatedSwitcher.
-//   • System chrome brightness flips per session.
+// Layout (unchanged from Phase 3):
+//   Stack
+//     AtmosphereLayer    ← living background
+//     Scaffold (transparent bg)
+//       body → LayoutBuilder → _MobileLayout / _WideLayout
+//       bottomNavigationBar → Column(AiDjBar + _SignalBottomNav)
 // ─────────────────────────────────────────────────────────────────────────────
 
 class HomePage extends StatefulWidget {
@@ -37,6 +43,11 @@ class _HomePageState extends State<HomePage> {
   SessionMode _prevMode = SignalFmSessions.londonOpen;
   int _navIndex = 0;
 
+  // Market state — cycles on demo tap; Phase 6: real data
+  int _marketStateIndex = 1; // start on 'bullish'
+  MarketStateData get _marketState =>
+      MarketStates.all[_marketStateIndex % MarketStates.all.length];
+
   void _onModeChanged(SessionMode next) {
     if (next.id == _mode.id) return;
     HapticFeedback.selectionClick();
@@ -48,9 +59,14 @@ class _HomePageState extends State<HomePage> {
 
   void _onNavTap(int i) => setState(() => _navIndex = i);
 
+  /// Advance market state — wired to BTC strip long-press for demo purposes.
+  void _cycleMarketState() {
+    HapticFeedback.lightImpact();
+    setState(() => _marketStateIndex++);
+  }
+
   @override
   Widget build(BuildContext context) {
-    // System status bar contrast
     SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
       statusBarIconBrightness:
           _mode.isDark ? Brightness.light : Brightness.dark,
@@ -63,32 +79,53 @@ class _HomePageState extends State<HomePage> {
         begin: _prevMode.backgroundColor,
         end: _mode.backgroundColor,
       ),
-      duration: const Duration(milliseconds: 500),
+      duration: const Duration(milliseconds: 550),
       curve: Curves.easeInOut,
       builder: (context, bg, _) {
-        return Scaffold(
-          backgroundColor: bg ?? _mode.backgroundColor,
-          bottomNavigationBar: _SignalBottomNav(
-            currentIndex: _navIndex,
-            mode: _mode,
-            onTap: _onNavTap,
-          ),
-          body: SafeArea(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                if (constraints.maxWidth < AppBreakpoints.mobile) {
-                  return _MobileLayout(
-                    mode: _mode,
-                    onModeChanged: _onModeChanged,
-                  );
-                }
-                return _WideLayout(
-                  mode: _mode,
-                  onModeChanged: _onModeChanged,
-                );
-              },
+        return Stack(
+          children: [
+            // ── Living atmosphere background ──────────────────────────
+            Positioned.fill(
+              child: ColoredBox(color: bg ?? _mode.backgroundColor),
             ),
-          ),
+            Positioned.fill(
+              child: AtmosphereLayer(
+                mode: _mode,
+                marketState: _marketState,
+              ),
+            ),
+
+            // ── App scaffold (transparent) ────────────────────────────
+            Scaffold(
+              backgroundColor: Colors.transparent,
+              bottomNavigationBar: _BottomArea(
+                mode: _mode,
+                marketState: _marketState,
+                navIndex: _navIndex,
+                onNavTap: _onNavTap,
+              ),
+              body: SafeArea(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    if (constraints.maxWidth < AppBreakpoints.mobile) {
+                      return _MobileLayout(
+                        mode: _mode,
+                        marketState: _marketState,
+                        onModeChanged: _onModeChanged,
+                        onBtcLongPress: _cycleMarketState,
+                      );
+                    }
+                    return _WideLayout(
+                      mode: _mode,
+                      marketState: _marketState,
+                      onModeChanged: _onModeChanged,
+                      onBtcLongPress: _cycleMarketState,
+                    );
+                  },
+                ),
+              ),
+            ),
+          ],
         );
       },
     );
@@ -96,20 +133,111 @@ class _HomePageState extends State<HomePage> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// _MobileLayout  (<600 px)
-//
-// Single scrollable column. Player card is in scrollable=true mode so it
-// renders as intrinsic height — no Expanded, no overflow.
+// _BottomArea — AiDjBar + BottomNavigationBar stacked
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _BottomArea extends StatelessWidget {
+  const _BottomArea({
+    required this.mode,
+    required this.marketState,
+    required this.navIndex,
+    required this.onNavTap,
+  });
+
+  final SessionMode mode;
+  final MarketStateData marketState;
+  final int navIndex;
+  final ValueChanged<int> onNavTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color barBg = mode.isDark
+        ? Color.lerp(mode.backgroundColor, Colors.white, 0.05)!
+        : Color.lerp(mode.backgroundColor, Colors.white, 0.55)!;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 420),
+      color: barBg,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // AI DJ ambient bar
+          AiDjBar(mode: mode, marketState: marketState),
+
+          // Divider
+          Container(
+            height: 1,
+            color: mode.surfaceBorder,
+          ),
+
+          // Bottom nav
+          BottomNavigationBar(
+            currentIndex: navIndex,
+            onTap: onNavTap,
+            type: BottomNavigationBarType.fixed,
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            selectedItemColor: mode.primaryColor,
+            unselectedItemColor: mode.onBackgroundMuted,
+            selectedLabelStyle: const TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.2,
+            ),
+            unselectedLabelStyle: const TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w400,
+            ),
+            items: const [
+              BottomNavigationBarItem(
+                icon: Icon(Icons.home_outlined),
+                activeIcon: Icon(Icons.home_rounded),
+                label: 'Home',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.explore_outlined),
+                activeIcon: Icon(Icons.explore_rounded),
+                label: 'Explore',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.play_circle_outline_rounded),
+                activeIcon: Icon(Icons.play_circle_rounded),
+                label: 'Player',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.auto_awesome_outlined),
+                activeIcon: Icon(Icons.auto_awesome_rounded),
+                label: 'AI DJ',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.library_music_outlined),
+                activeIcon: Icon(Icons.library_music_rounded),
+                label: 'Library',
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// _MobileLayout
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _MobileLayout extends StatelessWidget {
   const _MobileLayout({
     required this.mode,
+    required this.marketState,
     required this.onModeChanged,
+    required this.onBtcLongPress,
   });
 
   final SessionMode mode;
+  final MarketStateData marketState;
   final ValueChanged<SessionMode> onModeChanged;
+  final VoidCallback onBtcLongPress;
 
   @override
   Widget build(BuildContext context) {
@@ -119,31 +247,28 @@ class _MobileLayout extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Compact header (hides tagline)
           SignalHeader(mode: mode, compact: true),
-
           const SizedBox(height: 12),
 
-          BtcStrip(mode: mode),
-
+          GestureDetector(
+            onLongPress: onBtcLongPress,
+            child: BtcStrip(mode: mode),
+          ),
           const SizedBox(height: 10),
 
-          // Quick modes — horizontal scroll
           QuickModesRow(activeMode: mode, onModeChanged: onModeChanged),
-
           const SizedBox(height: 14),
 
-          // Player card — intrinsic height, no Expanded
-          AlbumPlayerCard(mode: mode, scrollable: true),
-
+          AlbumPlayerCard(
+            mode: mode,
+            marketState: marketState,
+            scrollable: true,
+          ),
           const SizedBox(height: 14),
 
-          // Fear & Greed
           FearGreedPanel(mode: mode),
-
           const SizedBox(height: 14),
 
-          // Session modes — intrinsic height on mobile (no Expanded)
           _MobileSessionPanel(mode: mode, onModeChanged: onModeChanged),
         ],
       ),
@@ -152,7 +277,80 @@ class _MobileLayout extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// _MobileSessionPanel — session buttons without Expanded (intrinsic height)
+// _WideLayout
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _WideLayout extends StatelessWidget {
+  const _WideLayout({
+    required this.mode,
+    required this.marketState,
+    required this.onModeChanged,
+    required this.onBtcLongPress,
+  });
+
+  final SessionMode mode;
+  final MarketStateData marketState;
+  final ValueChanged<SessionMode> onModeChanged;
+  final VoidCallback onBtcLongPress;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(22, 16, 22, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SignalHeader(mode: mode),
+          const SizedBox(height: 12),
+
+          GestureDetector(
+            onLongPress: onBtcLongPress,
+            child: BtcStrip(mode: mode),
+          ),
+          const SizedBox(height: 10),
+
+          QuickModesRow(activeMode: mode, onModeChanged: onModeChanged),
+          const SizedBox(height: 14),
+
+          Expanded(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  flex: 2,
+                  child: AlbumPlayerCard(
+                    mode: mode,
+                    marketState: marketState,
+                  ),
+                ),
+
+                const SizedBox(width: 16),
+
+                Expanded(
+                  child: Column(
+                    children: [
+                      FearGreedPanel(mode: mode),
+                      const SizedBox(height: 12),
+                      Expanded(
+                        child: SessionModesPanel(
+                          activeMode: mode,
+                          onModeChanged: onModeChanged,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// _MobileSessionPanel
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _MobileSessionPanel extends StatelessWidget {
@@ -245,8 +443,7 @@ class _MobileModeButton extends StatelessWidget {
                 session.displayName,
                 style: TextStyle(
                   fontSize: 13,
-                  fontWeight:
-                      isActive ? FontWeight.w700 : FontWeight.w500,
+                  fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
                   color: isActive
                       ? activeMode.onBackground
                       : activeMode.onBackgroundMuted,
@@ -257,168 +454,11 @@ class _MobileModeButton extends StatelessWidget {
               Container(
                 width: 5,
                 height: 5,
-                decoration: BoxDecoration(
-                  color: accent,
-                  shape: BoxShape.circle,
-                ),
+                decoration:
+                    BoxDecoration(color: accent, shape: BoxShape.circle),
               ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// _WideLayout  (≥600 px — tablet & desktop)
-//
-// Two-panel row. Player on the left (flex 2), market/session on the right.
-// Constrain max width on desktop so the layout doesn't stretch absurdly.
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _WideLayout extends StatelessWidget {
-  const _WideLayout({
-    required this.mode,
-    required this.onModeChanged,
-  });
-
-  final SessionMode mode;
-  final ValueChanged<SessionMode> onModeChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(22, 16, 22, 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ── Header ──────────────────────────────────────────────────
-          SignalHeader(mode: mode),
-
-          const SizedBox(height: 12),
-
-          // ── BTC strip ────────────────────────────────────────────────
-          BtcStrip(mode: mode),
-
-          const SizedBox(height: 10),
-
-          // ── Quick modes ──────────────────────────────────────────────
-          QuickModesRow(activeMode: mode, onModeChanged: onModeChanged),
-
-          const SizedBox(height: 14),
-
-          // ── Main two-panel row ───────────────────────────────────────
-          Expanded(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Left — player (flex 2)
-                Expanded(
-                  flex: 2,
-                  child: AlbumPlayerCard(mode: mode),
-                ),
-
-                const SizedBox(width: 16),
-
-                // Right — market data + session selector
-                Expanded(
-                  child: Column(
-                    children: [
-                      FearGreedPanel(mode: mode),
-
-                      const SizedBox(height: 12),
-
-                      Expanded(
-                        child: SessionModesPanel(
-                          activeMode: mode,
-                          onModeChanged: onModeChanged,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// _SignalBottomNav
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _SignalBottomNav extends StatelessWidget {
-  const _SignalBottomNav({
-    required this.currentIndex,
-    required this.mode,
-    required this.onTap,
-  });
-
-  final int currentIndex;
-  final SessionMode mode;
-  final ValueChanged<int> onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final Color barBg = mode.isDark
-        ? Color.lerp(mode.backgroundColor, Colors.white, 0.05)!
-        : Color.lerp(mode.backgroundColor, Colors.white, 0.55)!;
-
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 380),
-      decoration: BoxDecoration(
-        color: barBg,
-        border: Border(
-          top: BorderSide(color: mode.surfaceBorder, width: 1),
-        ),
-      ),
-      child: BottomNavigationBar(
-        currentIndex: currentIndex,
-        onTap: onTap,
-        type: BottomNavigationBarType.fixed,
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        selectedItemColor: mode.primaryColor,
-        unselectedItemColor: mode.onBackgroundMuted,
-        selectedLabelStyle: const TextStyle(
-          fontSize: 10,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0.2,
-        ),
-        unselectedLabelStyle: const TextStyle(
-          fontSize: 10,
-          fontWeight: FontWeight.w400,
-        ),
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home_outlined),
-            activeIcon: Icon(Icons.home_rounded),
-            label: 'Home',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.explore_outlined),
-            activeIcon: Icon(Icons.explore_rounded),
-            label: 'Explore',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.play_circle_outline_rounded),
-            activeIcon: Icon(Icons.play_circle_rounded),
-            label: 'Player',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.auto_awesome_outlined),
-            activeIcon: Icon(Icons.auto_awesome_rounded),
-            label: 'AI DJ',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.library_music_outlined),
-            activeIcon: Icon(Icons.library_music_rounded),
-            label: 'Library',
-          ),
-        ],
       ),
     );
   }

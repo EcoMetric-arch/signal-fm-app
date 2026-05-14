@@ -1,225 +1,357 @@
 import 'package:flutter/material.dart';
 
 import '../../../shared/theme/signal_fm_theme.dart';
-import 'live_analytics_strip.dart';
 import 'waveform_painter.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// AlbumPlayerCard  (Phase 5)
+// AlbumPlayerCard  (Phase 6)
 //
-// Changes from Phase 3:
-//   • Accepts [marketState] and passes it to WaveformDisplay.
-//   • Card box-shadow blurRadius / spreadRadius scale with
-//     marketState.shadowScale for atmosphere intensity.
-//   • Play button glow scales with marketState.glowScale.
-//   • No structural layout changes — Expanded rule intact.
+// Matches the reference hero section precisely:
+//   • Large circular album art with multi-layer glow ring
+//   • Track title + station name + subtitle row + ♥ and ⋯ icons
+//   • Waveform with playhead line + timestamps (1:48 / 3:58)
+//   • 5-button controls: shuffle ← prev ⏸ next → repeat
+//
+// NO analytics inside this card — analytics live in LiveAnalyticsStrip below.
+// RULE: never returns Expanded at root.
 // ─────────────────────────────────────────────────────────────────────────────
 
 class AlbumPlayerCard extends StatelessWidget {
   const AlbumPlayerCard({
     required this.mode,
     required this.marketState,
-    this.scrollable = false,
     super.key,
   });
 
   final SessionMode mode;
   final MarketStateData marketState;
-  final bool scrollable;
 
   @override
   Widget build(BuildContext context) {
-    final double artSize = scrollable ? 180.0 : 200.0;
-    final double shadowBlur = 42 * marketState.shadowScale;
-    final double shadowSpread = 2 * marketState.shadowScale;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // ── Large circular artwork ──────────────────────────────────────
+        _ArtworkRing(mode: mode, marketState: marketState),
 
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 420),
-      curve: Curves.easeOut,
-      height: scrollable ? null : double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(32),
-        color: mode.surfaceColor,
-        border: Border.all(color: mode.surfaceBorder, width: 1),
-        boxShadow: [
-          BoxShadow(
-            color: mode.accentGlow,
-            blurRadius: shadowBlur,
-            spreadRadius: shadowSpread,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _AlbumArt(mode: mode, size: artSize),
+        const SizedBox(height: 14),
 
-            const SizedBox(height: 18),
+        // ── Track info row ──────────────────────────────────────────────
+        _TrackInfoRow(mode: mode),
 
-            // Title
-            AnimatedSwitcher(
-              duration: const Duration(milliseconds: 340),
-              transitionBuilder: (child, anim) => FadeTransition(
-                opacity: anim,
-                child: SlideTransition(
-                  position: Tween<Offset>(
-                    begin: const Offset(0, 0.12),
-                    end: Offset.zero,
-                  ).animate(CurvedAnimation(
-                      parent: anim, curve: Curves.easeOut)),
-                  child: child,
-                ),
-              ),
-              child: Text(
-                mode.title,
-                key: ValueKey(mode.id),
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                  color: mode.onBackground,
-                  letterSpacing: 0.2,
-                  height: 1.1,
-                ),
-              ),
-            ),
+        const SizedBox(height: 14),
 
-            const SizedBox(height: 4),
+        // ── Waveform + progress ─────────────────────────────────────────
+        _WaveformSection(mode: mode, marketState: marketState),
 
-            // Subtitle
-            AnimatedSwitcher(
-              duration: const Duration(milliseconds: 260),
-              child: Text(
-                mode.subtitle,
-                key: ValueKey('${mode.id}_sub'),
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: mode.onBackgroundMuted,
-                  fontSize: 12,
-                  letterSpacing: 0.3,
-                ),
-              ),
-            ),
+        const SizedBox(height: 14),
 
-            const SizedBox(height: 16),
-
-            // Waveform — now receives marketState
-            SizedBox(
-              height: 60,
-              child: WaveformDisplay(
-                accentColor: mode.primaryColor,
-                waveformColors: mode.waveformColors,
-                marketState: marketState,
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            // Controls — play button glow scales with market state
-            _PlayerControls(mode: mode, marketState: marketState),
-
-            const SizedBox(height: 18),
-
-            LiveAnalyticsStrip(mode: mode),
-
-            const SizedBox(height: 4),
-          ],
-        ),
-      ),
+        // ── Playback controls ───────────────────────────────────────────
+        _PlaybackControls(mode: mode, marketState: marketState),
+      ],
     );
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// _AlbumArt
+// _ArtworkRing
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _AlbumArt extends StatelessWidget {
-  const _AlbumArt({required this.mode, required this.size});
-  final SessionMode mode;
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 420),
-        curve: Curves.easeOut,
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: LinearGradient(
-            colors: [mode.primaryColor, mode.secondaryColor],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: mode.primaryColor.withOpacity(0.35),
-              blurRadius: 32,
-              spreadRadius: 2,
-            ),
-          ],
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(5),
-          child: Container(
-            decoration: const BoxDecoration(
-              shape: BoxShape.circle,
-              image: DecorationImage(
-                image: AssetImage('assets/images/album_art.png'),
-                fit: BoxFit.cover,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// _PlayerControls
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _PlayerControls extends StatelessWidget {
-  const _PlayerControls({required this.mode, required this.marketState});
+class _ArtworkRing extends StatelessWidget {
+  const _ArtworkRing({required this.mode, required this.marketState});
   final SessionMode mode;
   final MarketStateData marketState;
 
   @override
   Widget build(BuildContext context) {
-    // Glow intensity on the play button scales with market state
-    final double glowBlur = (20 * marketState.glowScale).clamp(8.0, 40.0);
+    final double glowBlur = (40 * marketState.glowScale).clamp(16.0, 80.0);
     final double glowOpacity = (0.45 * marketState.glowScale).clamp(0.15, 0.80);
 
+    return Center(
+      child: SizedBox(
+        width: 240,
+        height: 240,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            // Outer glow halo
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 500),
+              width: 240,
+              height: 240,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: mode.primaryColor.withOpacity(glowOpacity * 0.6),
+                    blurRadius: glowBlur * 1.4,
+                    spreadRadius: 4,
+                  ),
+                ],
+              ),
+            ),
+            // Gradient ring border
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 420),
+              width: 230,
+              height: 230,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: SweepGradient(
+                  colors: [
+                    mode.primaryColor,
+                    mode.primaryColor.withOpacity(0.3),
+                    mode.secondaryColor,
+                    mode.primaryColor,
+                  ],
+                ),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(3),
+                child: Container(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: mode.backgroundColor,
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(6),
+                    child: Container(
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        image: DecorationImage(
+                          image: AssetImage('assets/images/album_art.png'),
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            // Inner glow ring overlay
+            Container(
+              width: 230,
+              height: 230,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: mode.primaryColor.withOpacity(glowOpacity * 0.35),
+                    blurRadius: glowBlur * 0.5,
+                    spreadRadius: -4,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// _TrackInfoRow — title + station + subtitle + ♥ + ⋯
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _TrackInfoRow extends StatelessWidget {
+  const _TrackInfoRow({required this.mode});
+  final SessionMode mode;
+
+  @override
+  Widget build(BuildContext context) {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _GhostButton(
-          icon: Icons.skip_previous_rounded,
-          color: mode.onBackgroundMuted,
-          size: 32,
+        // Text block
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 300),
+                child: Text(
+                  mode.title,
+                  key: ValueKey('${mode.id}_title'),
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    color: mode.onBackground,
+                    letterSpacing: 0.1,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                mode.stationName,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: mode.onBackgroundMuted,
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
+              const SizedBox(height: 1),
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 260),
+                child: Text(
+                  mode.subtitle,
+                  key: ValueKey('${mode.id}_sub'),
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: mode.onBackgroundMuted,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
 
-        const SizedBox(width: 24),
+        // Icons
+        Row(
+          children: [
+            Icon(Icons.favorite_border_rounded,
+                size: 20, color: mode.onBackgroundMuted),
+            const SizedBox(width: 14),
+            Icon(Icons.more_horiz_rounded,
+                size: 20, color: mode.onBackgroundMuted),
+          ],
+        ),
+      ],
+    );
+  }
+}
 
+// ─────────────────────────────────────────────────────────────────────────────
+// _WaveformSection — waveform + progress slider + timestamps
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _WaveformSection extends StatelessWidget {
+  const _WaveformSection({required this.mode, required this.marketState});
+  final SessionMode mode;
+  final MarketStateData marketState;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        // Waveform
+        SizedBox(
+          height: 48,
+          child: WaveformDisplay(
+            accentColor: mode.primaryColor,
+            waveformColors: mode.waveformColors,
+            marketState: marketState,
+          ),
+        ),
+        const SizedBox(height: 6),
+
+        // Progress line + playhead dot
+        Stack(
+          alignment: Alignment.centerLeft,
+          children: [
+            Container(
+              height: 2,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(2),
+                color: mode.onBackgroundMuted.withOpacity(0.25),
+              ),
+            ),
+            FractionallySizedBox(
+              widthFactor: 0.46, // 1:48 / 3:58 ≈ 0.46
+              child: Container(
+                height: 2,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(2),
+                  color: mode.primaryColor,
+                ),
+              ),
+            ),
+            FractionallySizedBox(
+              widthFactor: 0.46,
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: mode.primaryColor,
+                    boxShadow: [
+                      BoxShadow(
+                        color: mode.primaryColor.withOpacity(0.55),
+                        blurRadius: 6,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 5),
+
+        // Timestamps
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              '1:48',
+              style: TextStyle(
+                fontSize: 10,
+                color: mode.onBackgroundMuted,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            Text(
+              '3:58',
+              style: TextStyle(
+                fontSize: 10,
+                color: mode.onBackgroundMuted,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// _PlaybackControls — shuffle, prev, play/pause, next, repeat
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _PlaybackControls extends StatelessWidget {
+  const _PlaybackControls({required this.mode, required this.marketState});
+  final SessionMode mode;
+  final MarketStateData marketState;
+
+  @override
+  Widget build(BuildContext context) {
+    final double glowBlur = (18 * marketState.glowScale).clamp(8.0, 36.0);
+    final double glowOpacity =
+        (0.45 * marketState.glowScale).clamp(0.15, 0.80);
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: [
+        // Shuffle
+        Icon(Icons.shuffle_rounded,
+            size: 20, color: mode.onBackgroundMuted),
+
+        // Previous
+        Icon(Icons.skip_previous_rounded,
+            size: 28, color: mode.onBackground.withOpacity(0.85)),
+
+        // Play/Pause — large accent button
         AnimatedContainer(
-          duration: const Duration(milliseconds: 420),
-          width: 62,
-          height: 62,
+          duration: const Duration(milliseconds: 380),
+          width: 58,
+          height: 58,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            gradient: LinearGradient(
-              colors: [mode.primaryColor, mode.secondaryColor],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
+            color: mode.primaryColor,
             boxShadow: [
               BoxShadow(
                 color: mode.primaryColor.withOpacity(glowOpacity),
@@ -228,33 +360,21 @@ class _PlayerControls extends StatelessWidget {
               ),
             ],
           ),
-          child: const Icon(Icons.pause_rounded, color: Colors.white, size: 30),
+          child: const Icon(
+            Icons.pause_rounded,
+            color: Colors.white,
+            size: 28,
+          ),
         ),
 
-        const SizedBox(width: 24),
+        // Next
+        Icon(Icons.skip_next_rounded,
+            size: 28, color: mode.onBackground.withOpacity(0.85)),
 
-        _GhostButton(
-          icon: Icons.skip_next_rounded,
-          color: mode.onBackgroundMuted,
-          size: 32,
-        ),
+        // Repeat
+        Icon(Icons.repeat_rounded,
+            size: 20, color: mode.onBackgroundMuted),
       ],
     );
-  }
-}
-
-class _GhostButton extends StatelessWidget {
-  const _GhostButton({
-    required this.icon,
-    required this.color,
-    required this.size,
-  });
-  final IconData icon;
-  final Color color;
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    return Icon(icon, size: size, color: color);
   }
 }

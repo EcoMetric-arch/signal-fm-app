@@ -52,7 +52,7 @@ class MarketStateData {
   final String aiDjMessage;
 }
 
-abstract final class MarketStates {
+class MarketStates {
   static const MarketStateData calm = MarketStateData(
     label: 'Calm',
     glowScale: 0.6,
@@ -213,7 +213,7 @@ class SessionMode {
 // SignalFmSessions
 // ─────────────────────────────────────────────────────────────────────────────
 
-abstract final class SignalFmSessions {
+class SignalFmSessions {
   // ── 1. London Open — warm sunrise energy ──────────────────────────────────
   static const SessionMode londonOpen = SessionMode(
     id: 'London Open',

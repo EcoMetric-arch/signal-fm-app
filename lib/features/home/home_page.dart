@@ -7,28 +7,26 @@ import 'widgets/ai_dj_bar.dart';
 import 'widgets/album_player_card.dart';
 import 'widgets/atmosphere_painter.dart';
 import 'widgets/btc_strip.dart';
-import 'widgets/fear_greed_panel.dart';
+import 'widgets/live_analytics_strip.dart';
 import 'widgets/quick_modes_row.dart';
 import 'widgets/session_modes_panel.dart';
 import 'widgets/signal_header.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// HomePage  (Phase 5)
+// HomePage  (Phase 6)
 //
-// New additions:
-//   • MarketStateData _marketState — cycles through states via a demo button
-//     in the header area (long-press BTC strip to advance state).
-//     In Phase 6 this comes from a real data provider.
-//   • AtmosphereLayer — full-screen ambient background in a Stack.
-//   • AiDjBar — ambient AI readout above the bottom nav.
-//   • marketState passed down to AlbumPlayerCard → WaveformDisplay.
+// Layout matches the reference image precisely:
 //
-// Layout (unchanged from Phase 3):
-//   Stack
-//     AtmosphereLayer    ← living background
-//     Scaffold (transparent bg)
-//       body → LayoutBuilder → _MobileLayout / _WideLayout
-//       bottomNavigationBar → Column(AiDjBar + _SignalBottomNav)
+//   ① Session selector (top bar)
+//   ② BTC ticker strip + Fear & Greed mini (inline)
+//   ③ Hero player (artwork ring + track info + waveform + controls)
+//   ④ Live Analytics card (TraderaEdge + insight + F&G gauge)
+//   ⑤ Price Map card
+//   ⑥ Quick Modes row
+//   ⑦ AI DJ bar + Bottom nav
+//
+// On wide screens (≥ AppBreakpoints.mobile): same layout is centered in a
+// max-width container so it never stretches into a dashboard.
 // ─────────────────────────────────────────────────────────────────────────────
 
 class HomePage extends StatefulWidget {
@@ -39,12 +37,11 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  SessionMode _mode = SignalFmSessions.londonOpen;
-  SessionMode _prevMode = SignalFmSessions.londonOpen;
+  SessionMode _mode = SignalFmSessions.tokyoNight; // default matches reference
+  SessionMode _prevMode = SignalFmSessions.tokyoNight;
   int _navIndex = 0;
+  int _marketStateIndex = 1; // bullish by default
 
-  // Market state — cycles on demo tap; Phase 6: real data
-  int _marketStateIndex = 1; // start on 'bullish'
   MarketStateData get _marketState =>
       MarketStates.all[_marketStateIndex % MarketStates.all.length];
 
@@ -59,7 +56,6 @@ class _HomePageState extends State<HomePage> {
 
   void _onNavTap(int i) => setState(() => _navIndex = i);
 
-  /// Advance market state — wired to BTC strip long-press for demo purposes.
   void _cycleMarketState() {
     HapticFeedback.lightImpact();
     setState(() => _marketStateIndex++);
@@ -68,10 +64,8 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
-      statusBarIconBrightness:
-          _mode.isDark ? Brightness.light : Brightness.dark,
-      statusBarBrightness:
-          _mode.isDark ? Brightness.dark : Brightness.light,
+      statusBarIconBrightness: Brightness.light,
+      statusBarBrightness: Brightness.dark,
     ));
 
     return TweenAnimationBuilder<Color?>(
@@ -84,7 +78,7 @@ class _HomePageState extends State<HomePage> {
       builder: (context, bg, _) {
         return Stack(
           children: [
-            // ── Living atmosphere background ──────────────────────────
+            // Living atmosphere background
             Positioned.fill(
               child: ColoredBox(color: bg ?? _mode.backgroundColor),
             ),
@@ -95,7 +89,7 @@ class _HomePageState extends State<HomePage> {
               ),
             ),
 
-            // ── App scaffold (transparent) ────────────────────────────
+            // App scaffold
             Scaffold(
               backgroundColor: Colors.transparent,
               bottomNavigationBar: _BottomArea(
@@ -107,19 +101,19 @@ class _HomePageState extends State<HomePage> {
               body: SafeArea(
                 child: LayoutBuilder(
                   builder: (context, constraints) {
-                    if (constraints.maxWidth < AppBreakpoints.mobile) {
-                      return _MobileLayout(
-                        mode: _mode,
-                        marketState: _marketState,
-                        onModeChanged: _onModeChanged,
-                        onBtcLongPress: _cycleMarketState,
-                      );
-                    }
-                    return _WideLayout(
-                      mode: _mode,
-                      marketState: _marketState,
-                      onModeChanged: _onModeChanged,
-                      onBtcLongPress: _cycleMarketState,
+                    // On all screen widths: centered column with max width 480
+                    // This preserves phone proportions on tablet/desktop.
+                    return Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 480),
+                        child: _PlayerColumn(
+                          mode: _mode,
+                          marketState: _marketState,
+                          onModeChanged: _onModeChanged,
+                          onBtcLongPress: _cycleMarketState,
+                          isWide: constraints.maxWidth >= AppBreakpoints.mobile,
+                        ),
+                      ),
                     );
                   },
                 ),
@@ -133,7 +127,312 @@ class _HomePageState extends State<HomePage> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// _BottomArea — AiDjBar + BottomNavigationBar stacked
+// _PlayerColumn — single scrollable column matching the reference layout
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _PlayerColumn extends StatelessWidget {
+  const _PlayerColumn({
+    required this.mode,
+    required this.marketState,
+    required this.onModeChanged,
+    required this.onBtcLongPress,
+    required this.isWide,
+  });
+
+  final SessionMode mode;
+  final MarketStateData marketState;
+  final ValueChanged<SessionMode> onModeChanged;
+  final VoidCallback onBtcLongPress;
+  final bool isWide;
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ① Session selector bar
+          _SessionSelectorBar(mode: mode, onModeChanged: onModeChanged),
+
+          const SizedBox(height: 10),
+
+          // ② BTC strip (with F&G mini inline on right)
+          GestureDetector(
+            onLongPress: onBtcLongPress,
+            child: BtcStrip(mode: mode),
+          ),
+
+          const SizedBox(height: 14),
+
+          // ③ Hero player
+          AlbumPlayerCard(mode: mode, marketState: marketState),
+
+          const SizedBox(height: 14),
+
+          // ④⑤ Live Analytics + Price Map
+          LiveAnalyticsStrip(mode: mode),
+
+          const SizedBox(height: 14),
+
+          // ⑥ Quick Modes
+          QuickModesRow(activeMode: mode, onModeChanged: onModeChanged),
+
+          const SizedBox(height: 8),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// _SessionSelectorBar — reference item ①
+// Compact dropdown-style pill showing active session + LIVE badge
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _SessionSelectorBar extends StatelessWidget {
+  const _SessionSelectorBar({
+    required this.mode,
+    required this.onModeChanged,
+  });
+
+  final SessionMode mode;
+  final ValueChanged<SessionMode> onModeChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        // Session pill — tap to show bottom sheet selector
+        GestureDetector(
+          onTap: () => _showSessionPicker(context),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 220),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            decoration: BoxDecoration(
+              color: mode.surfaceColor,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: mode.surfaceBorder, width: 1),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(mode.quickModeIcon,
+                    size: 13, color: mode.primaryColor),
+                const SizedBox(width: 6),
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 220),
+                  child: Text(
+                    mode.displayName,
+                    key: ValueKey(mode.id),
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: mode.onBackground,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Icon(Icons.keyboard_arrow_down_rounded,
+                    size: 14, color: mode.onBackgroundMuted),
+              ],
+            ),
+          ),
+        ),
+
+        const Spacer(),
+
+        // LIVE badge
+        _LiveBadge(mode: mode),
+      ],
+    );
+  }
+
+  void _showSessionPicker(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _SessionPickerSheet(
+        mode: mode,
+        onModeChanged: onModeChanged,
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// _LiveBadge — pulsing diamond + LIVE text
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _LiveBadge extends StatefulWidget {
+  const _LiveBadge({required this.mode});
+  final SessionMode mode;
+
+  @override
+  State<_LiveBadge> createState() => _LiveBadgeState();
+}
+
+class _LiveBadgeState extends State<_LiveBadge>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _pulse;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat(reverse: true);
+    _pulse = Tween<double>(begin: 0.5, end: 1.0)
+        .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _pulse,
+      builder: (_, __) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: widget.mode.primaryColor.withOpacity(0.12),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: widget.mode.primaryColor.withOpacity(0.3),
+            width: 1,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.diamond_outlined,
+              size: 10,
+              color: widget.mode.primaryColor.withOpacity(_pulse.value),
+            ),
+            const SizedBox(width: 4),
+            Text(
+              'LIVE',
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.6,
+                color: widget.mode.primaryColor.withOpacity(_pulse.value),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// _SessionPickerSheet — bottom sheet session selector
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _SessionPickerSheet extends StatelessWidget {
+  const _SessionPickerSheet({
+    required this.mode,
+    required this.onModeChanged,
+  });
+
+  final SessionMode mode;
+  final ValueChanged<SessionMode> onModeChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 0, 12, 24),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      decoration: BoxDecoration(
+        color: Color.lerp(mode.backgroundColor, Colors.white, 0.06),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: mode.surfaceBorder, width: 1),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: mode.onBackgroundMuted.withOpacity(0.4),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            'Select Session',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: mode.onBackground,
+            ),
+          ),
+          const SizedBox(height: 12),
+          ...SignalFmSessions.all.map(
+            (session) => ListTile(
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+              leading: Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: session.primaryColor.withOpacity(0.15),
+                ),
+                child: Icon(session.quickModeIcon,
+                    size: 16, color: session.primaryColor),
+              ),
+              title: Text(
+                session.displayName,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: session.id == mode.id
+                      ? FontWeight.w700
+                      : FontWeight.w500,
+                  color: session.id == mode.id
+                      ? mode.primaryColor
+                      : mode.onBackground,
+                ),
+              ),
+              subtitle: Text(
+                session.subtitle,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: mode.onBackgroundMuted,
+                ),
+              ),
+              trailing: session.id == mode.id
+                  ? Icon(Icons.check_rounded,
+                      size: 16, color: mode.primaryColor)
+                  : null,
+              onTap: () {
+                onModeChanged(session);
+                Navigator.of(context).pop();
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// _BottomArea — AI DJ bar + bottom navigation
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _BottomArea extends StatelessWidget {
@@ -151,26 +450,21 @@ class _BottomArea extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color barBg = mode.isDark
-        ? Color.lerp(mode.backgroundColor, Colors.white, 0.05)!
-        : Color.lerp(mode.backgroundColor, Colors.white, 0.55)!;
+    final Color barBg =
+        Color.lerp(mode.backgroundColor, Colors.white, 0.05)!;
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 420),
-      color: barBg,
+      decoration: BoxDecoration(
+        color: barBg,
+        border: Border(
+          top: BorderSide(color: mode.surfaceBorder, width: 1),
+        ),
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // AI DJ ambient bar
           AiDjBar(mode: mode, marketState: marketState),
-
-          // Divider
-          Container(
-            height: 1,
-            color: mode.surfaceBorder,
-          ),
-
-          // Bottom nav
           BottomNavigationBar(
             currentIndex: navIndex,
             onTap: onNavTap,
@@ -182,34 +476,52 @@ class _BottomArea extends StatelessWidget {
             selectedLabelStyle: const TextStyle(
               fontSize: 10,
               fontWeight: FontWeight.w700,
-              letterSpacing: 0.2,
             ),
-            unselectedLabelStyle: const TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w400,
-            ),
-            items: const [
-              BottomNavigationBarItem(
+            unselectedLabelStyle: const TextStyle(fontSize: 10),
+            items: [
+              const BottomNavigationBarItem(
                 icon: Icon(Icons.home_outlined),
                 activeIcon: Icon(Icons.home_rounded),
                 label: 'Home',
               ),
-              BottomNavigationBarItem(
+              const BottomNavigationBarItem(
                 icon: Icon(Icons.explore_outlined),
                 activeIcon: Icon(Icons.explore_rounded),
                 label: 'Explore',
               ),
               BottomNavigationBarItem(
-                icon: Icon(Icons.play_circle_outline_rounded),
-                activeIcon: Icon(Icons.play_circle_rounded),
+                icon: Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      colors: [mode.primaryColor, mode.secondaryColor],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: mode.primaryColor.withOpacity(0.4),
+                        blurRadius: 12,
+                        spreadRadius: 0,
+                      ),
+                    ],
+                  ),
+                  child: Icon(
+                    Icons.graphic_eq_rounded,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                ),
                 label: 'Player',
               ),
-              BottomNavigationBarItem(
+              const BottomNavigationBarItem(
                 icon: Icon(Icons.auto_awesome_outlined),
                 activeIcon: Icon(Icons.auto_awesome_rounded),
                 label: 'AI DJ',
               ),
-              BottomNavigationBarItem(
+              const BottomNavigationBarItem(
                 icon: Icon(Icons.library_music_outlined),
                 activeIcon: Icon(Icons.library_music_rounded),
                 label: 'Library',
@@ -217,248 +529,6 @@ class _BottomArea extends StatelessWidget {
             ],
           ),
         ],
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// _MobileLayout
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _MobileLayout extends StatelessWidget {
-  const _MobileLayout({
-    required this.mode,
-    required this.marketState,
-    required this.onModeChanged,
-    required this.onBtcLongPress,
-  });
-
-  final SessionMode mode;
-  final MarketStateData marketState;
-  final ValueChanged<SessionMode> onModeChanged;
-  final VoidCallback onBtcLongPress;
-
-  @override
-  Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SignalHeader(mode: mode, compact: true),
-          const SizedBox(height: 12),
-
-          GestureDetector(
-            onLongPress: onBtcLongPress,
-            child: BtcStrip(mode: mode),
-          ),
-          const SizedBox(height: 10),
-
-          QuickModesRow(activeMode: mode, onModeChanged: onModeChanged),
-          const SizedBox(height: 14),
-
-          AlbumPlayerCard(
-            mode: mode,
-            marketState: marketState,
-            scrollable: true,
-          ),
-          const SizedBox(height: 14),
-
-          FearGreedPanel(mode: mode),
-          const SizedBox(height: 14),
-
-          _MobileSessionPanel(mode: mode, onModeChanged: onModeChanged),
-        ],
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// _WideLayout
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _WideLayout extends StatelessWidget {
-  const _WideLayout({
-    required this.mode,
-    required this.marketState,
-    required this.onModeChanged,
-    required this.onBtcLongPress,
-  });
-
-  final SessionMode mode;
-  final MarketStateData marketState;
-  final ValueChanged<SessionMode> onModeChanged;
-  final VoidCallback onBtcLongPress;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(22, 16, 22, 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SignalHeader(mode: mode),
-          const SizedBox(height: 12),
-
-          GestureDetector(
-            onLongPress: onBtcLongPress,
-            child: BtcStrip(mode: mode),
-          ),
-          const SizedBox(height: 10),
-
-          QuickModesRow(activeMode: mode, onModeChanged: onModeChanged),
-          const SizedBox(height: 14),
-
-          Expanded(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  flex: 2,
-                  child: AlbumPlayerCard(
-                    mode: mode,
-                    marketState: marketState,
-                  ),
-                ),
-
-                const SizedBox(width: 16),
-
-                Expanded(
-                  child: Column(
-                    children: [
-                      FearGreedPanel(mode: mode),
-                      const SizedBox(height: 12),
-                      Expanded(
-                        child: SessionModesPanel(
-                          activeMode: mode,
-                          onModeChanged: onModeChanged,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// _MobileSessionPanel
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _MobileSessionPanel extends StatelessWidget {
-  const _MobileSessionPanel({
-    required this.mode,
-    required this.onModeChanged,
-  });
-
-  final SessionMode mode;
-  final ValueChanged<SessionMode> onModeChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 380),
-      curve: Curves.easeOut,
-      padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
-        color: mode.surfaceColor,
-        border: Border.all(color: mode.surfaceBorder, width: 1),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            'SESSION MODES',
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.9,
-              color: mode.onBackgroundMuted,
-            ),
-          ),
-          const SizedBox(height: 10),
-          ...SignalFmSessions.all.map(
-            (session) => _MobileModeButton(
-              session: session,
-              isActive: session.id == mode.id,
-              activeMode: mode,
-              onTap: () => onModeChanged(session),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _MobileModeButton extends StatelessWidget {
-  const _MobileModeButton({
-    required this.session,
-    required this.isActive,
-    required this.activeMode,
-    required this.onTap,
-  });
-
-  final SessionMode session;
-  final bool isActive;
-  final SessionMode activeMode;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final accent = activeMode.primaryColor;
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        margin: const EdgeInsets.only(bottom: 6),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(14),
-          color: isActive ? accent.withOpacity(0.13) : Colors.transparent,
-          border: Border.all(
-            color: isActive ? accent.withOpacity(0.50) : Colors.transparent,
-          ),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              session.quickModeIcon,
-              size: 15,
-              color: isActive ? accent : activeMode.onBackgroundMuted,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                session.displayName,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
-                  color: isActive
-                      ? activeMode.onBackground
-                      : activeMode.onBackgroundMuted,
-                ),
-              ),
-            ),
-            if (isActive)
-              Container(
-                width: 5,
-                height: 5,
-                decoration:
-                    BoxDecoration(color: accent, shape: BoxShape.circle),
-              ),
-          ],
-        ),
       ),
     );
   }

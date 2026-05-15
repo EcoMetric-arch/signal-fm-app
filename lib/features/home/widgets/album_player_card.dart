@@ -4,15 +4,8 @@ import '../../../shared/theme/signal_fm_theme.dart';
 import 'waveform_painter.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// AlbumPlayerCard  (Phase 6)
-//
-// Matches the reference hero section precisely:
-//   • Large circular album art with multi-layer glow ring
-//   • Track title + station name + subtitle row + ♥ and ⋯ icons
-//   • Waveform with playhead line + timestamps (1:48 / 3:58)
-//   • 5-button controls: shuffle ← prev ⏸ next → repeat
-//
-// NO analytics inside this card — analytics live in LiveAnalyticsStrip below.
+// AlbumPlayerCard — hero player section
+// Dart compatibility: Dart 2.17+, no records, no abstract final class.
 // RULE: never returns Expanded at root.
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -30,23 +23,13 @@ class AlbumPlayerCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       mainAxisSize: MainAxisSize.min,
-      children: [
-        // ── Large circular artwork ──────────────────────────────────────
+      children: <Widget>[
         _ArtworkRing(mode: mode, marketState: marketState),
-
-        const SizedBox(height: 14),
-
-        // ── Track info row ──────────────────────────────────────────────
+        const SizedBox(height: 12),
         _TrackInfoRow(mode: mode),
-
-        const SizedBox(height: 14),
-
-        // ── Waveform + progress ─────────────────────────────────────────
+        const SizedBox(height: 12),
         _WaveformSection(mode: mode, marketState: marketState),
-
-        const SizedBox(height: 14),
-
-        // ── Playback controls ───────────────────────────────────────────
+        const SizedBox(height: 12),
         _PlaybackControls(mode: mode, marketState: marketState),
       ],
     );
@@ -54,96 +37,63 @@ class AlbumPlayerCard extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// _ArtworkRing
+// _ArtworkRing — clean 2px border + focused BoxShadow glow (no SweepGradient)
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _ArtworkRing extends StatelessWidget {
   const _ArtworkRing({required this.mode, required this.marketState});
+
   final SessionMode mode;
   final MarketStateData marketState;
 
   @override
   Widget build(BuildContext context) {
-    final double glowBlur = (40 * marketState.glowScale).clamp(16.0, 80.0);
-    final double glowOpacity = (0.45 * marketState.glowScale).clamp(0.15, 0.80);
+    final double glowBlur =
+        (32.0 * marketState.glowScale).clamp(14.0, 64.0);
+    final double glowOpacity =
+        (0.55 * marketState.glowScale).clamp(0.20, 0.85);
+    final double outerBlur =
+        (56.0 * marketState.glowScale).clamp(20.0, 90.0);
+    final double outerOpacity =
+        (0.22 * marketState.glowScale).clamp(0.06, 0.38);
 
     return Center(
-      child: SizedBox(
-        width: 240,
-        height: 240,
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            // Outer glow halo
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 500),
-              width: 240,
-              height: 240,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: mode.primaryColor.withOpacity(glowOpacity * 0.6),
-                    blurRadius: glowBlur * 1.4,
-                    spreadRadius: 4,
-                  ),
-                ],
-              ),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 480),
+        curve: Curves.easeOut,
+        width: 200,
+        height: 200,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: mode.primaryColor,
+            width: 2.0,
+          ),
+          boxShadow: <BoxShadow>[
+            // Focused inner glow — tight bright core
+            BoxShadow(
+              color: mode.primaryColor.withOpacity(glowOpacity),
+              blurRadius: glowBlur,
+              spreadRadius: 0,
             ),
-            // Gradient ring border
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 420),
-              width: 230,
-              height: 230,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: SweepGradient(
-                  colors: [
-                    mode.primaryColor,
-                    mode.primaryColor.withOpacity(0.3),
-                    mode.secondaryColor,
-                    mode.primaryColor,
-                  ],
-                ),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(3),
-                child: Container(
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: mode.backgroundColor,
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(6),
-                    child: Container(
-                      decoration: const BoxDecoration(
-                        shape: BoxShape.circle,
-                        image: DecorationImage(
-                          image: AssetImage('assets/images/album_art.png'),
-                          fit: BoxFit.cover,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            // Inner glow ring overlay
-            Container(
-              width: 230,
-              height: 230,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: mode.primaryColor.withOpacity(glowOpacity * 0.35),
-                    blurRadius: glowBlur * 0.5,
-                    spreadRadius: -4,
-                  ),
-                ],
-              ),
+            // Wide outer atmospheric halo
+            BoxShadow(
+              color: mode.primaryColor.withOpacity(outerOpacity),
+              blurRadius: outerBlur,
+              spreadRadius: -4,
             ),
           ],
+        ),
+        child: ClipOval(
+          child: Padding(
+            padding: const EdgeInsets.all(2),
+            child: ClipOval(
+              child: Image.asset(
+                'assets/images/album_art.png',
+                fit: BoxFit.cover,
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -151,32 +101,46 @@ class _ArtworkRing extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// _TrackInfoRow — title + station + subtitle + ♥ + ⋯
+// _TrackInfoRow
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _TrackInfoRow extends StatelessWidget {
   const _TrackInfoRow({required this.mode});
+
   final SessionMode mode;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Text block
+      children: <Widget>[
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+            children: <Widget>[
               AnimatedSwitcher(
-                duration: const Duration(milliseconds: 300),
+                duration: const Duration(milliseconds: 280),
+                transitionBuilder:
+                    (Widget child, Animation<double> anim) {
+                  return FadeTransition(
+                    opacity: anim,
+                    child: SlideTransition(
+                      position: Tween<Offset>(
+                        begin: const Offset(0, 0.08),
+                        end: Offset.zero,
+                      ).animate(CurvedAnimation(
+                          parent: anim, curve: Curves.easeOut)),
+                      child: child,
+                    ),
+                  );
+                },
                 child: Text(
                   mode.title,
-                  key: ValueKey('${mode.id}_title'),
-                  style: TextStyle(
-                    fontSize: 20,
+                  key: ValueKey<String>('${mode.id}_title'),
+                  style: const TextStyle(
+                    fontSize: 19,
                     fontWeight: FontWeight.w800,
-                    color: mode.onBackground,
+                    color: Color(0xFFF5F6FA),
                     letterSpacing: 0.1,
                   ),
                 ),
@@ -184,36 +148,30 @@ class _TrackInfoRow extends StatelessWidget {
               const SizedBox(height: 2),
               Text(
                 mode.stationName,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: mode.onBackgroundMuted,
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: Color(0xFF6B82A0),
                   fontWeight: FontWeight.w400,
                 ),
               ),
               const SizedBox(height: 1),
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 260),
-                child: Text(
-                  mode.subtitle,
-                  key: ValueKey('${mode.id}_sub'),
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: mode.onBackgroundMuted,
-                  ),
+              Text(
+                mode.subtitle,
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: Color(0xFF6B82A0),
                 ),
               ),
             ],
           ),
         ),
-
-        // Icons
         Row(
-          children: [
+          children: <Widget>[
             Icon(Icons.favorite_border_rounded,
-                size: 20, color: mode.onBackgroundMuted),
+                size: 19, color: mode.onBackgroundMuted),
             const SizedBox(width: 14),
             Icon(Icons.more_horiz_rounded,
-                size: 20, color: mode.onBackgroundMuted),
+                size: 19, color: mode.onBackgroundMuted),
           ],
         ),
       ],
@@ -222,47 +180,52 @@ class _TrackInfoRow extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// _WaveformSection — waveform + progress slider + timestamps
+// _WaveformSection
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _WaveformSection extends StatelessWidget {
   const _WaveformSection({required this.mode, required this.marketState});
+
   final SessionMode mode;
   final MarketStateData marketState;
 
   @override
   Widget build(BuildContext context) {
     return Column(
-      children: [
-        // Waveform
+      children: <Widget>[
         SizedBox(
-          height: 48,
+          height: 44,
           child: WaveformDisplay(
             accentColor: mode.primaryColor,
             waveformColors: mode.waveformColors,
             marketState: marketState,
           ),
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 5),
 
-        // Progress line + playhead dot
+        // Progress track
         Stack(
           alignment: Alignment.centerLeft,
-          children: [
+          children: <Widget>[
             Container(
-              height: 2,
+              height: 3,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(2),
-                color: mode.onBackgroundMuted.withOpacity(0.25),
+                borderRadius: BorderRadius.circular(3),
+                color: Colors.white.withOpacity(0.12),
               ),
             ),
             FractionallySizedBox(
-              widthFactor: 0.46, // 1:48 / 3:58 ≈ 0.46
+              widthFactor: 0.46,
               child: Container(
-                height: 2,
+                height: 3,
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(2),
-                  color: mode.primaryColor,
+                  borderRadius: BorderRadius.circular(3),
+                  gradient: LinearGradient(
+                    colors: <Color>[
+                      mode.primaryColor,
+                      mode.primaryColor.withOpacity(0.6),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -271,15 +234,16 @@ class _WaveformSection extends StatelessWidget {
               child: Align(
                 alignment: Alignment.centerRight,
                 child: Container(
-                  width: 10,
-                  height: 10,
+                  width: 11,
+                  height: 11,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: mode.primaryColor,
-                    boxShadow: [
+                    color: Colors.white,
+                    boxShadow: <BoxShadow>[
                       BoxShadow(
-                        color: mode.primaryColor.withOpacity(0.55),
-                        blurRadius: 6,
+                        color: mode.primaryColor.withOpacity(0.70),
+                        blurRadius: 8,
+                        spreadRadius: 0,
                       ),
                     ],
                   ),
@@ -290,11 +254,9 @@ class _WaveformSection extends StatelessWidget {
         ),
 
         const SizedBox(height: 5),
-
-        // Timestamps
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
+          children: <Widget>[
             Text(
               '1:48',
               style: TextStyle(
@@ -319,59 +281,52 @@ class _WaveformSection extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// _PlaybackControls — shuffle, prev, play/pause, next, repeat
+// _PlaybackControls — shuffle / prev / play / next / repeat
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _PlaybackControls extends StatelessWidget {
   const _PlaybackControls({required this.mode, required this.marketState});
+
   final SessionMode mode;
   final MarketStateData marketState;
 
   @override
   Widget build(BuildContext context) {
-    final double glowBlur = (18 * marketState.glowScale).clamp(8.0, 36.0);
+    final double glowBlur =
+        (16.0 * marketState.glowScale).clamp(8.0, 32.0);
     final double glowOpacity =
-        (0.45 * marketState.glowScale).clamp(0.15, 0.80);
+        (0.50 * marketState.glowScale).clamp(0.18, 0.80);
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: [
-        // Shuffle
+      children: <Widget>[
         Icon(Icons.shuffle_rounded,
             size: 20, color: mode.onBackgroundMuted),
-
-        // Previous
         Icon(Icons.skip_previous_rounded,
-            size: 28, color: mode.onBackground.withOpacity(0.85)),
-
-        // Play/Pause — large accent button
+            size: 28, color: const Color(0xFFDDE4F0)),
         AnimatedContainer(
           duration: const Duration(milliseconds: 380),
-          width: 58,
-          height: 58,
+          width: 56,
+          height: 56,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: mode.primaryColor,
-            boxShadow: [
+            boxShadow: <BoxShadow>[
               BoxShadow(
                 color: mode.primaryColor.withOpacity(glowOpacity),
                 blurRadius: glowBlur,
-                spreadRadius: 1,
+                spreadRadius: 0,
               ),
             ],
           ),
           child: const Icon(
             Icons.pause_rounded,
             color: Colors.white,
-            size: 28,
+            size: 26,
           ),
         ),
-
-        // Next
         Icon(Icons.skip_next_rounded,
-            size: 28, color: mode.onBackground.withOpacity(0.85)),
-
-        // Repeat
+            size: 28, color: const Color(0xFFDDE4F0)),
         Icon(Icons.repeat_rounded,
             size: 20, color: mode.onBackgroundMuted),
       ],

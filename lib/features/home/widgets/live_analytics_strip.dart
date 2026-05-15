@@ -4,25 +4,8 @@ import 'package:flutter/material.dart';
 import '../../../shared/theme/signal_fm_theme.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// LiveAnalyticsStrip  (Phase 6)
-//
-// Matches reference sections 8 + 9:
-//
-//   ┌─ LIVE ANALYTICS by ⬡ TraderaEdge ────────── ● LIVE ─┐
-//   │  BIAS      VOLATILITY   MTF ALIGNMENT  AI MARKET MOOD  [AI orb] │
-//   │  BULLISH   HIGH         1D↑ 4H↑ 1H→   RISK-ON               │
-//   │──────────────────────────────────────────────────────────────│
-//   │  INSIGHT                              FEAR & GREED           │
-//   │  Market calm and stable.              ┌─────┐               │
-//   │  Perfect for deep introspection.      │  58  │               │
-//   │                                       │Neutral│               │
-//   └──────────────────────────────────────────────────────────────┘
-//
-//   ┌─ PRICE MAP — KEY ZONES (BTC) ───────────────────────────────┐
-//   │  R1  ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━  $83,200               │
-//   │  NOW  ●━━━━━━━━━━━━━━━━━━━━━━━━  $67,892                  │
-//   │  S1  ●━━━━━━━━━━━━━━━━━━━━━━━  $80,800                    │
-//   └──────────────────────────────────────────────────────────────┘
+// LiveAnalyticsStrip — Analytics card + Price Map card
+// Dart compatibility: Dart 2.17+, no records, no abstract final class.
 // ─────────────────────────────────────────────────────────────────────────────
 
 class LiveAnalyticsStrip extends StatelessWidget {
@@ -35,13 +18,9 @@ class LiveAnalyticsStrip extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
-      children: [
-        // ── Analytics card ────────────────────────────────────────────
+      children: <Widget>[
         _AnalyticsCard(mode: mode),
-
-        const SizedBox(height: 10),
-
-        // ── Price map card ────────────────────────────────────────────
+        const SizedBox(height: 8),
         _PriceMapCard(mode: mode),
       ],
     );
@@ -54,112 +33,101 @@ class LiveAnalyticsStrip extends StatelessWidget {
 
 class _AnalyticsCard extends StatelessWidget {
   const _AnalyticsCard({required this.mode});
+
   final SessionMode mode;
 
   @override
   Widget build(BuildContext context) {
-    final a = mode.analytics;
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 380),
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+    final AnalyticsData a = mode.analytics;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 9, 12, 11),
       decoration: BoxDecoration(
-        color: mode.surfaceColor,
+        color: Colors.white.withOpacity(0.06),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: mode.surfaceBorder, width: 1),
-        boxShadow: [
+        border: Border.all(
+          color: Colors.white.withOpacity(0.13),
+          width: 1,
+        ),
+        boxShadow: <BoxShadow>[
           BoxShadow(
-            color: mode.primaryColor.withOpacity(0.07),
-            blurRadius: 16,
+            color: mode.primaryColor.withOpacity(0.10),
+            blurRadius: 20,
+            spreadRadius: -2,
             offset: const Offset(0, 4),
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ── Header ────────────────────────────────────────────────
+        children: <Widget>[
           _CardHeader(mode: mode),
-
-          const SizedBox(height: 10),
-
-          // ── 4 chips + AI avatar ───────────────────────────────────
+          const SizedBox(height: 9),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+            children: <Widget>[
               Expanded(
                 child: Row(
-                  children: [
-                    _AnalyticsChip(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    _Chip(
                       label: 'BIAS',
                       value: a.bias.toUpperCase(),
-                      valueColor: mode.biasColor(a.bias),
-                      mode: mode,
+                      color: mode.biasColor(a.bias),
                     ),
                     const SizedBox(width: 6),
-                    _AnalyticsChip(
+                    _Chip(
                       label: 'VOLATILITY',
                       value: a.volatility.toUpperCase(),
-                      valueColor: a.volatility.toLowerCase().contains('high')
-                          ? const Color(0xFFEF4444)
-                          : a.volatility.toLowerCase().contains('low')
-                              ? const Color(0xFF22C55E)
-                              : const Color(0xFFF59E0B),
-                      mode: mode,
+                      color: _volatilityColor(a.volatility),
                     ),
                     const SizedBox(width: 6),
-                    _AnalyticsChip(
-                      label: 'MTF ALIGNMENT',
+                    _Chip(
+                      label: 'MTF',
                       value: a.mtfAlignment,
-                      valueColor: mode.primaryColor,
-                      mode: mode,
+                      color: mode.primaryColor,
                       compact: true,
                     ),
                     const SizedBox(width: 6),
-                    _AnalyticsChip(
-                      label: 'AI MARKET MOOD',
+                    _Chip(
+                      label: 'MOOD',
                       value: a.aiMarketMood.toUpperCase(),
-                      valueColor: mode.biasColor(a.aiMarketMood),
-                      mode: mode,
+                      color: mode.biasColor(a.aiMarketMood),
                     ),
                   ],
                 ),
               ),
               const SizedBox(width: 8),
-              // AI orb avatar
               _AiOrb(mode: mode),
             ],
           ),
-
-          const SizedBox(height: 10),
-          Container(height: 1, color: mode.surfaceBorder),
-          const SizedBox(height: 10),
-
-          // ── Insight + Fear & Greed ────────────────────────────────
+          const SizedBox(height: 9),
+          Container(height: 1, color: Colors.white.withOpacity(0.10)),
+          const SizedBox(height: 9),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+            children: <Widget>[
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
+                  children: <Widget>[
+                    const Text(
                       'INSIGHT',
                       style: TextStyle(
                         fontSize: 8,
                         fontWeight: FontWeight.w700,
-                        letterSpacing: 0.8,
-                        color: mode.onBackgroundMuted,
+                        letterSpacing: 0.9,
+                        color: Color(0xFF6B82A0),
                       ),
                     ),
-                    const SizedBox(height: 5),
+                    const SizedBox(height: 4),
                     AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 340),
+                      duration: const Duration(milliseconds: 320),
                       child: Text(
                         a.insight,
-                        key: ValueKey(mode.id),
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: mode.onBackground,
+                        key: ValueKey<String>(mode.id),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Color(0xFFE8ECF4),
                           height: 1.5,
                         ),
                       ),
@@ -175,14 +143,22 @@ class _AnalyticsCard extends StatelessWidget {
       ),
     );
   }
+
+  static Color _volatilityColor(String v) {
+    final String lower = v.toLowerCase();
+    if (lower.contains('high')) return const Color(0xFFFF4D6A);
+    if (lower.contains('low')) return const Color(0xFF23D96A);
+    return const Color(0xFFF59E0B);
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// _CardHeader — "LIVE ANALYTICS by ⬡ TraderaEdge" + LIVE dot
+// _CardHeader — pulsing LIVE dot
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _CardHeader extends StatefulWidget {
   const _CardHeader({required this.mode});
+
   final SessionMode mode;
 
   @override
@@ -199,10 +175,11 @@ class _CardHeaderState extends State<_CardHeader>
     super.initState();
     _ctrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1400),
+      duration: const Duration(milliseconds: 1200),
     )..repeat(reverse: true);
-    _pulse = Tween<double>(begin: 0.4, end: 1.0)
-        .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
+    _pulse = Tween<double>(begin: 0.45, end: 1.0).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
+    );
   }
 
   @override
@@ -213,57 +190,64 @@ class _CardHeaderState extends State<_CardHeader>
 
   @override
   Widget build(BuildContext context) {
-    final mode = widget.mode;
+    final SessionMode mode = widget.mode;
     return Row(
-      children: [
-        // Brand icon
-        Icon(Icons.analytics_outlined, size: 13, color: mode.primaryColor),
+      children: <Widget>[
+        Icon(Icons.analytics_outlined, size: 12, color: mode.primaryColor),
         const SizedBox(width: 5),
-        Text(
+        const Text(
           'LIVE ANALYTICS  ',
           style: TextStyle(
             fontSize: 10,
             fontWeight: FontWeight.w700,
             letterSpacing: 0.6,
-            color: mode.onBackgroundMuted,
+            color: Color(0xFF6B82A0),
           ),
         ),
-        Text(
+        const Text(
           'by  TraderaEdge',
           style: TextStyle(
             fontSize: 10,
             fontWeight: FontWeight.w600,
-            color: mode.onBackground,
+            color: Color(0xFFD0D8E8),
           ),
         ),
         const Spacer(),
-        // LIVE badge
         AnimatedBuilder(
           animation: _pulse,
-          builder: (_, __) => Row(
-            children: [
-              Container(
-                width: 6,
-                height: 6,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: const Color(0xFF22C55E)
-                      .withOpacity(_pulse.value),
+          builder: (BuildContext context, Widget? child) {
+            return Row(
+              children: <Widget>[
+                Container(
+                  width: 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: const Color(0xFF23D96A)
+                        .withOpacity(_pulse.value),
+                    boxShadow: <BoxShadow>[
+                      BoxShadow(
+                        color: const Color(0xFF23D96A)
+                            .withOpacity(_pulse.value * 0.6),
+                        blurRadius: 6,
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(width: 4),
-              Text(
-                'LIVE',
-                style: TextStyle(
-                  fontSize: 9,
-                  fontWeight: FontWeight.w700,
-                  color: const Color(0xFF22C55E)
-                      .withOpacity(_pulse.value),
-                  letterSpacing: 0.5,
+                const SizedBox(width: 4),
+                Text(
+                  'LIVE',
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF23D96A)
+                        .withOpacity(_pulse.value),
+                    letterSpacing: 0.5,
+                  ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            );
+          },
         ),
       ],
     );
@@ -271,22 +255,20 @@ class _CardHeaderState extends State<_CardHeader>
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// _AnalyticsChip
+// _Chip
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _AnalyticsChip extends StatelessWidget {
-  const _AnalyticsChip({
+class _Chip extends StatelessWidget {
+  const _Chip({
     required this.label,
     required this.value,
-    required this.valueColor,
-    required this.mode,
+    required this.color,
     this.compact = false,
   });
 
   final String label;
   final String value;
-  final Color valueColor;
-  final SessionMode mode;
+  final Color color;
   final bool compact;
 
   @override
@@ -294,37 +276,32 @@ class _AnalyticsChip extends StatelessWidget {
     return Flexible(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+        children: <Widget>[
           Text(
             label,
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 7,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.5,
-              color: mode.onBackgroundMuted,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.6,
+              color: Color(0xFF6B82A0),
             ),
           ),
           const SizedBox(height: 3),
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 260),
-            child: Text(
-              value,
-              key: ValueKey('$label${mode.id}'),
-              style: TextStyle(
-                fontSize: compact ? 9 : 11,
-                fontWeight: FontWeight.w800,
-                color: valueColor,
-                letterSpacing: 0.2,
-              ),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: compact ? 9 : 12,
+              fontWeight: FontWeight.w800,
+              color: color,
+              letterSpacing: 0.1,
             ),
           ),
-          const SizedBox(height: 3),
-          // Tiny underline bar in value color
+          const SizedBox(height: 4),
           Container(
-            height: 1.5,
-            width: 20,
+            height: 2,
+            width: 18,
             decoration: BoxDecoration(
-              color: valueColor.withOpacity(0.5),
+              color: color,
               borderRadius: BorderRadius.circular(1),
             ),
           ),
@@ -335,11 +312,12 @@ class _AnalyticsChip extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// _AiOrb — small AI avatar orb, pulsing
+// _AiOrb
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _AiOrb extends StatefulWidget {
   const _AiOrb({required this.mode});
+
   final SessionMode mode;
 
   @override
@@ -354,7 +332,7 @@ class _AiOrbState extends State<_AiOrb> with SingleTickerProviderStateMixin {
     super.initState();
     _ctrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 2000),
+      duration: const Duration(milliseconds: 2200),
     )..repeat(reverse: true);
   }
 
@@ -366,96 +344,91 @@ class _AiOrbState extends State<_AiOrb> with SingleTickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    final mode = widget.mode;
+    final SessionMode mode = widget.mode;
     return AnimatedBuilder(
       animation: _ctrl,
-      builder: (_, __) => Container(
-        width: 36,
-        height: 36,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: RadialGradient(
-            colors: [
-              mode.primaryColor
-                  .withOpacity(0.3 + _ctrl.value * 0.2),
-              mode.primaryColor.withOpacity(0.05),
+      builder: (BuildContext context, Widget? child) {
+        return Container(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: mode.primaryColor.withOpacity(0.12),
+            border: Border.all(
+              color: mode.primaryColor
+                  .withOpacity(0.30 + _ctrl.value * 0.25),
+              width: 1.2,
+            ),
+            boxShadow: <BoxShadow>[
+              BoxShadow(
+                color: mode.primaryColor
+                    .withOpacity(0.20 + _ctrl.value * 0.15),
+                blurRadius: 10,
+              ),
             ],
           ),
-          border: Border.all(
-            color: mode.primaryColor
-                .withOpacity(0.4 + _ctrl.value * 0.3),
-            width: 1,
+          child: Icon(
+            Icons.auto_awesome_rounded,
+            size: 15,
+            color: mode.primaryColor,
           ),
-        ),
-        child: Icon(
-          Icons.auto_awesome_rounded,
-          size: 16,
-          color: mode.primaryColor,
-        ),
-      ),
+        );
+      },
     );
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// _FearGreedGauge — circular gauge in the insight section
+// _FearGreedGauge
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _FearGreedGauge extends StatelessWidget {
   const _FearGreedGauge({required this.mode});
+
   final SessionMode mode;
 
   @override
   Widget build(BuildContext context) {
-    final int score = int.tryParse(mode.analytics.fearGreedMini) ?? 50;
-    final Color scoreColor = score <= 30
-        ? const Color(0xFFEF4444)
-        : score <= 50
-            ? const Color(0xFFF59E0B)
-            : score <= 70
-                ? mode.primaryColor
-                : const Color(0xFF22C55E);
+    final int score =
+        int.tryParse(mode.analytics.fearGreedMini) ?? 50;
+    final Color c = _scoreColor(score, mode.primaryColor);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        Text(
+      children: <Widget>[
+        const Text(
           'FEAR & GREED',
           style: TextStyle(
             fontSize: 8,
             fontWeight: FontWeight.w700,
-            letterSpacing: 0.8,
-            color: mode.onBackgroundMuted,
+            letterSpacing: 0.7,
+            color: Color(0xFF6B82A0),
           ),
         ),
-        const SizedBox(height: 5),
+        const SizedBox(height: 4),
         SizedBox(
-          width: 58,
-          height: 58,
+          width: 56,
+          height: 56,
           child: CustomPaint(
-            painter: _GaugePainter(score: score, color: scoreColor),
+            painter: _GaugePainter(score: score, color: c),
             child: Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 320),
-                    child: Text(
-                      '$score',
-                      key: ValueKey(mode.id),
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                        color: scoreColor,
-                        height: 1.0,
-                      ),
+                children: <Widget>[
+                  Text(
+                    '$score',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: c,
+                      height: 1.0,
                     ),
                   ),
                   Text(
                     mode.analytics.fearGreedLabel,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: 7,
-                      color: mode.onBackgroundMuted,
+                      color: Color(0xFF6B82A0),
                     ),
                   ),
                 ],
@@ -466,113 +439,111 @@ class _FearGreedGauge extends StatelessWidget {
       ],
     );
   }
+
+  static Color _scoreColor(int score, Color primary) {
+    if (score <= 30) return const Color(0xFFFF4D6A);
+    if (score <= 50) return const Color(0xFFF59E0B);
+    if (score <= 70) return primary;
+    return const Color(0xFF23D96A);
+  }
 }
 
 class _GaugePainter extends CustomPainter {
   _GaugePainter({required this.score, required this.color});
+
   final int score;
   final Color color;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = size.width / 2 - 3;
-    const startAngle = math.pi * 0.75;
-    const sweepTotal = math.pi * 1.5;
+    final Offset center = Offset(size.width / 2, size.height / 2);
+    final double radius = size.width / 2 - 4;
+    const double startAngle = math.pi * 0.75;
+    const double sweepTotal = math.pi * 1.5;
 
-    // Background arc
     canvas.drawArc(
       Rect.fromCircle(center: center, radius: radius),
-      startAngle,
-      sweepTotal,
-      false,
+      startAngle, sweepTotal, false,
       Paint()
-        ..color = color.withOpacity(0.15)
-        ..strokeWidth = 4
+        ..color = Colors.white.withOpacity(0.10)
+        ..strokeWidth = 5
         ..style = PaintingStyle.stroke
         ..strokeCap = StrokeCap.round,
     );
-
-    // Value arc
-    final sweep = sweepTotal * (score / 100);
     canvas.drawArc(
       Rect.fromCircle(center: center, radius: radius),
-      startAngle,
-      sweep,
-      false,
+      startAngle, sweepTotal * (score / 100), false,
       Paint()
         ..color = color
-        ..strokeWidth = 4
+        ..strokeWidth = 5
         ..style = PaintingStyle.stroke
         ..strokeCap = StrokeCap.round,
     );
   }
 
   @override
-  bool shouldRepaint(_GaugePainter old) =>
-      old.score != score || old.color != color;
+  bool shouldRepaint(_GaugePainter old) {
+    return old.score != score || old.color != color;
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// _PriceMapCard — R1 / NOW / S1
+// _PriceMapCard
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _PriceMapCard extends StatelessWidget {
   const _PriceMapCard({required this.mode});
+
   final SessionMode mode;
 
   @override
   Widget build(BuildContext context) {
-    final a = mode.analytics;
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 380),
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+    final AnalyticsData a = mode.analytics;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 9, 12, 11),
       decoration: BoxDecoration(
-        color: mode.surfaceColor,
+        color: Colors.white.withOpacity(0.06),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: mode.surfaceBorder, width: 1),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.13),
+          width: 1,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
+        children: <Widget>[
+          const Text(
             'PRICE MAP — KEY ZONES (BTC)',
             style: TextStyle(
               fontSize: 9,
               fontWeight: FontWeight.w700,
               letterSpacing: 0.7,
-              color: mode.onBackgroundMuted,
+              color: Color(0xFF6B82A0),
             ),
           ),
-          const SizedBox(height: 10),
-          _PriceZone(
+          const SizedBox(height: 9),
+          _Zone(
             label: 'R1',
             value: a.r1,
-            dotColor: const Color(0xFFEF4444),
-            lineProgress: 0.78,
-            textColor: mode.onBackground,
-            mutedColor: mode.onBackgroundMuted,
+            dotColor: const Color(0xFFFF4D6A),
+            progress: 0.78,
             sessionId: mode.id,
           ),
-          const SizedBox(height: 8),
-          _PriceZone(
+          const SizedBox(height: 7),
+          _Zone(
             label: 'NOW',
             value: a.now,
             dotColor: mode.primaryColor,
-            lineProgress: 0.55,
-            textColor: mode.onBackground,
-            mutedColor: mode.onBackgroundMuted,
+            progress: 0.55,
             sessionId: mode.id,
             isNow: true,
           ),
-          const SizedBox(height: 8),
-          _PriceZone(
+          const SizedBox(height: 7),
+          _Zone(
             label: 'S1',
             value: a.s1,
-            dotColor: const Color(0xFF22C55E),
-            lineProgress: 0.68,
-            textColor: mode.onBackground,
-            mutedColor: mode.onBackgroundMuted,
+            dotColor: const Color(0xFF23D96A),
+            progress: 0.68,
             sessionId: mode.id,
           ),
         ],
@@ -581,14 +552,12 @@ class _PriceMapCard extends StatelessWidget {
   }
 }
 
-class _PriceZone extends StatelessWidget {
-  const _PriceZone({
+class _Zone extends StatelessWidget {
+  const _Zone({
     required this.label,
     required this.value,
     required this.dotColor,
-    required this.lineProgress,
-    required this.textColor,
-    required this.mutedColor,
+    required this.progress,
     required this.sessionId,
     this.isNow = false,
     super.key,
@@ -597,87 +566,78 @@ class _PriceZone extends StatelessWidget {
   final String label;
   final String value;
   final Color dotColor;
-  final double lineProgress;
-  final Color textColor;
-  final Color mutedColor;
+  final double progress;
   final String sessionId;
   final bool isNow;
 
   @override
   Widget build(BuildContext context) {
     return Row(
-      children: [
-        // Label
+      children: <Widget>[
         SizedBox(
-          width: 30,
+          width: 28,
           child: Text(
             label,
             style: TextStyle(
-              fontSize: 11,
+              fontSize: 10,
               fontWeight: FontWeight.w700,
               color: dotColor,
             ),
           ),
         ),
-        const SizedBox(width: 6),
-        // Dot
+        const SizedBox(width: 4),
         Container(
           width: 7,
           height: 7,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: dotColor,
-            boxShadow: [
-              BoxShadow(
-                color: dotColor.withOpacity(0.5),
-                blurRadius: isNow ? 6 : 3,
-              ),
-            ],
+            boxShadow: isNow
+                ? <BoxShadow>[
+                    BoxShadow(
+                        color: dotColor.withOpacity(0.60), blurRadius: 7),
+                  ]
+                : null,
           ),
         ),
         const SizedBox(width: 6),
-        // Line
         Expanded(
           child: LayoutBuilder(
-            builder: (_, constraints) => Stack(
-              children: [
-                Container(
-                  height: 2,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(2),
-                    color: dotColor.withOpacity(0.15),
-                  ),
-                ),
-                SizedBox(
-                  width: constraints.maxWidth * lineProgress,
-                  height: 2,
-                  child: DecoratedBox(
+            builder: (BuildContext context, BoxConstraints c) {
+              return Stack(
+                children: <Widget>[
+                  Container(
+                    height: 2,
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(2),
-                      gradient: LinearGradient(
-                        colors: [
-                          dotColor.withOpacity(0.8),
-                          dotColor.withOpacity(0.3),
-                        ],
-                      ),
+                      color: Colors.white.withOpacity(0.08),
                     ),
                   ),
-                ),
-              ],
-            ),
+                  Container(
+                    height: 2,
+                    width: c.maxWidth * progress,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(2),
+                      color: dotColor.withOpacity(0.75),
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
         ),
-        const SizedBox(width: 10),
-        // Price
+        const SizedBox(width: 8),
         AnimatedSwitcher(
-          duration: const Duration(milliseconds: 260),
+          duration: const Duration(milliseconds: 240),
           child: Text(
             value,
-            key: ValueKey('$label$sessionId'),
+            key: ValueKey<String>('$label$sessionId'),
             style: TextStyle(
-              fontSize: 12,
+              fontSize: 11,
               fontWeight: isNow ? FontWeight.w700 : FontWeight.w500,
-              color: isNow ? textColor : mutedColor,
+              color: isNow
+                  ? const Color(0xFFF5F6FA)
+                  : const Color(0xFF8899BB),
             ),
           ),
         ),

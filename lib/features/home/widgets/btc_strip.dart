@@ -4,52 +4,44 @@ import 'package:flutter/material.dart';
 import '../../../shared/theme/signal_fm_theme.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// BtcStrip  (Phase 6)
-//
-// Matches reference row 2:
-//   [₿ icon] [$67,892] [-0.35%] [mini squiggle] ... [58 Neutral] ← F&G mini
-//
-// The Fear & Greed mini circle is rendered INSIDE this strip on the right,
-// matching the reference layout where it sits inline with the BTC row.
+// BtcStrip — BTC price row with inline Fear & Greed mini
+// Dart compatibility: Dart 2.17+, no records, no abstract final class.
 // ─────────────────────────────────────────────────────────────────────────────
 
 class BtcStrip extends StatelessWidget {
-  const BtcStrip({
-    required this.mode,
-    super.key,
-  });
+  const BtcStrip({required this.mode, super.key});
 
   final SessionMode mode;
 
   @override
   Widget build(BuildContext context) {
     final Color deltaColor = mode.isNegativeDelta
-        ? const Color(0xFFEF4444)
-        : const Color(0xFF22C55E);
+        ? const Color(0xFFFF4D6A)
+        : const Color(0xFF23D96A);
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
       decoration: BoxDecoration(
-        color: mode.surfaceColor,
+        color: Colors.white.withOpacity(0.06),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: mode.surfaceBorder, width: 1),
+        border: Border.all(color: Colors.white.withOpacity(0.13), width: 1),
       ),
       child: Row(
-        children: [
-          // ── BTC icon ───────────────────────────────────────────────────
+        children: <Widget>[
+          // ── BTC avatar ─────────────────────────────────────────────────
           Container(
-            width: 28,
-            height: 28,
+            width: 26,
+            height: 26,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: const Color(0xFFF7931A).withOpacity(0.18),
+              color: const Color(0xFFF7931A).withOpacity(0.16),
             ),
             child: const Center(
               child: Text(
                 '₿',
                 style: TextStyle(
                   color: Color(0xFFF7931A),
-                  fontSize: 14,
+                  fontSize: 13,
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -58,23 +50,23 @@ class BtcStrip extends StatelessWidget {
           const SizedBox(width: 8),
 
           // ── Price ──────────────────────────────────────────────────────
-          Text(
+          const Text(
             '\$67,892',
             style: TextStyle(
-              fontSize: 15,
+              fontSize: 14,
               fontWeight: FontWeight.w700,
-              color: mode.onBackground,
+              color: Color(0xFFF5F6FA),
               letterSpacing: 0.2,
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 7),
 
           // ── Delta ──────────────────────────────────────────────────────
           AnimatedSwitcher(
-            duration: const Duration(milliseconds: 340),
+            duration: const Duration(milliseconds: 300),
             child: Text(
               mode.btcDelta,
-              key: ValueKey(mode.id),
+              key: ValueKey<String>(mode.id),
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
@@ -82,24 +74,24 @@ class BtcStrip extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 7),
 
           // ── Mini squiggle chart ────────────────────────────────────────
           SizedBox(
-            width: 48,
-            height: 22,
+            width: 46,
+            height: 20,
             child: CustomPaint(
               painter: _MiniChartPainter(
                 color: deltaColor,
-                isNegative: mode.isNegativeDelta,
+                negative: mode.isNegativeDelta,
               ),
             ),
           ),
 
           const Spacer(),
 
-          // ── Fear & Greed mini inline ───────────────────────────────────
-          _FearGreedMini(mode: mode),
+          // ── Fear & Greed mini ──────────────────────────────────────────
+          _FgMini(mode: mode),
         ],
       ),
     );
@@ -107,40 +99,44 @@ class BtcStrip extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// _MiniChartPainter — simple 8-point squiggle line
+// _MiniChartPainter
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _MiniChartPainter extends CustomPainter {
-  _MiniChartPainter({required this.color, required this.isNegative});
+  _MiniChartPainter({required this.color, required this.negative});
 
   final Color color;
-  final bool isNegative;
+  final bool negative;
 
-  static const _upPoints = [0.6, 0.5, 0.7, 0.4, 0.6, 0.3, 0.5, 0.25];
-  static const _downPoints = [0.3, 0.4, 0.25, 0.5, 0.35, 0.6, 0.45, 0.7];
+  static const List<double> _up = <double>[
+    0.60, 0.48, 0.68, 0.38, 0.58, 0.30, 0.50, 0.24,
+  ];
+  static const List<double> _dn = <double>[
+    0.32, 0.42, 0.26, 0.50, 0.36, 0.60, 0.46, 0.70,
+  ];
 
   @override
   void paint(Canvas canvas, Size size) {
-    final pts = isNegative ? _downPoints : _upPoints;
-    final paint = Paint()
-      ..color = color.withOpacity(0.8)
-      ..strokeWidth = 1.5
+    final List<double> pts = negative ? _dn : _up;
+    final Paint paint = Paint()
+      ..color = color
+      ..strokeWidth = 2.0
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
 
-    final path = Path();
+    final Path path = Path();
     for (int i = 0; i < pts.length; i++) {
-      final x = (i / (pts.length - 1)) * size.width;
-      final y = pts[i] * size.height;
+      final double x = (i / (pts.length - 1)) * size.width;
+      final double y = pts[i] * size.height;
       if (i == 0) {
         path.moveTo(x, y);
       } else {
-        final prevX = ((i - 1) / (pts.length - 1)) * size.width;
-        final prevY = pts[i - 1] * size.height;
+        final double px = ((i - 1) / (pts.length - 1)) * size.width;
+        final double py = pts[i - 1] * size.height;
         path.cubicTo(
-          prevX + (x - prevX) * 0.5, prevY,
-          prevX + (x - prevX) * 0.5, y,
+          px + (x - px) * 0.5, py,
+          px + (x - px) * 0.5, y,
           x, y,
         );
       }
@@ -149,64 +145,66 @@ class _MiniChartPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_MiniChartPainter old) =>
-      old.isNegative != isNegative || old.color != color;
+  bool shouldRepaint(_MiniChartPainter old) {
+    return old.negative != negative || old.color != color;
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// _FearGreedMini — inline circular indicator matching reference item 3
+// _FgMini — inline Fear & Greed circle
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _FearGreedMini extends StatelessWidget {
-  const _FearGreedMini({required this.mode});
+class _FgMini extends StatelessWidget {
+  const _FgMini({required this.mode});
+
   final SessionMode mode;
 
   @override
   Widget build(BuildContext context) {
-    final int score = int.tryParse(mode.analytics.fearGreedMini) ?? 50;
-    // Color: ≤30 red, 31–50 amber, 51–70 neutral/blue, >70 green
-    final Color scoreColor = score <= 30
-        ? const Color(0xFFEF4444)
-        : score <= 50
-            ? const Color(0xFFF59E0B)
-            : score <= 70
-                ? mode.primaryColor
-                : const Color(0xFF22C55E);
+    final int score =
+        int.tryParse(mode.analytics.fearGreedMini) ?? 50;
+    final Color c = _scoreColor(score, mode.primaryColor);
 
     return Container(
-      width: 52,
-      height: 52,
+      width: 50,
+      height: 50,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: mode.surfaceColor,
-        border: Border.all(color: scoreColor.withOpacity(0.35), width: 1.5),
+        color: Colors.white.withOpacity(0.05),
+        border: Border.all(color: c.withOpacity(0.45), width: 1.5),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
-        children: [
+        children: <Widget>[
           AnimatedSwitcher(
-            duration: const Duration(milliseconds: 320),
+            duration: const Duration(milliseconds: 280),
             child: Text(
               mode.analytics.fearGreedMini,
-              key: ValueKey(mode.id),
+              key: ValueKey<String>(mode.id),
               style: TextStyle(
-                fontSize: 16,
+                fontSize: 15,
                 fontWeight: FontWeight.w800,
-                color: scoreColor,
+                color: c,
                 height: 1.0,
               ),
             ),
           ),
           Text(
             mode.analytics.fearGreedLabel,
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 7,
-              color: mode.onBackgroundMuted,
-              letterSpacing: 0.2,
+              color: Color(0xFF6B82A0),
             ),
           ),
         ],
       ),
     );
+  }
+
+  static Color _scoreColor(int score, Color primary) {
+    if (score <= 30) return const Color(0xFFFF4D6A);
+    if (score <= 50) return const Color(0xFFF59E0B);
+    if (score <= 70) return primary;
+    return const Color(0xFF23D96A);
   }
 }

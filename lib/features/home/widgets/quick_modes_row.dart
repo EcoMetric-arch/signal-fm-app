@@ -3,13 +3,8 @@ import 'package:flutter/material.dart';
 import '../../../shared/theme/signal_fm_theme.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// QuickModesRow  (Phase 6)
-//
-// Matches reference section 10 (Quick Modes):
-//   "QUICK MODES" label + "View all" on the right
-//   5 chips below in a horizontal scroll row
-//   Active chip: filled background + glow border + white label
-//   Inactive: ghost/translucent
+// QuickModesRow — 5 session chips with header
+// Dart compatibility: Dart 2.17+, no records, no abstract final class.
 // ─────────────────────────────────────────────────────────────────────────────
 
 class QuickModesRow extends StatelessWidget {
@@ -26,11 +21,10 @@ class QuickModesRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // ── Header row ──────────────────────────────────────────────────
+      children: <Widget>[
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
+          children: <Widget>[
             Text(
               'QUICK MODES',
               style: TextStyle(
@@ -50,16 +44,13 @@ class QuickModesRow extends StatelessWidget {
             ),
           ],
         ),
-
         const SizedBox(height: 10),
-
-        // ── Chips ───────────────────────────────────────────────────────
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           physics: const BouncingScrollPhysics(),
           child: Row(
-            children: [
-              for (final session in SignalFmSessions.all) ...[
+            children: <Widget>[
+              for (final SessionMode session in SignalFmSessions.all) ...<Widget>[
                 _ModeChip(
                   session: session,
                   isActive: session.id == activeMode.id,
@@ -92,7 +83,6 @@ class _ModeChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Color accent = activeMode.primaryColor;
-
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
@@ -103,14 +93,16 @@ class _ModeChip extends StatelessWidget {
         decoration: BoxDecoration(
           color: isActive
               ? accent.withOpacity(0.18)
-              : activeMode.surfaceColor,
+              : Colors.white.withOpacity(0.06),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: isActive ? accent : activeMode.surfaceBorder,
-            width: isActive ? 1.5 : 1,
+            color: isActive
+                ? accent
+                : Colors.white.withOpacity(0.13),
+            width: isActive ? 1.5 : 1.0,
           ),
           boxShadow: isActive
-              ? [
+              ? <BoxShadow>[
                   BoxShadow(
                     color: accent.withOpacity(0.30),
                     blurRadius: 12,
@@ -121,7 +113,7 @@ class _ModeChip extends StatelessWidget {
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          children: [
+          children: <Widget>[
             Icon(
               session.quickModeIcon,
               size: 18,
@@ -133,7 +125,8 @@ class _ModeChip extends StatelessWidget {
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 10,
-                fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+                fontWeight:
+                    isActive ? FontWeight.w700 : FontWeight.w500,
                 color: isActive
                     ? activeMode.onBackground
                     : activeMode.onBackgroundMuted,

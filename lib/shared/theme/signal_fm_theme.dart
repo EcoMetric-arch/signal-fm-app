@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Dart compatibility: uses 'abstract class', NOT 'abstract final class'.
+// No Dart records syntax. Compatible with Dart 2.17+ / Flutter 3.x.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────────────────────────────
 // MarketStateData
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -27,16 +32,16 @@ class MarketStateData {
 abstract class MarketStates {
   static const MarketStateData calm = MarketStateData(
     label: 'Calm',
-    glowScale: 0.6,
-    animSpeedScale: 0.7,
-    peakScale: 0.75,
-    shadowScale: 0.6,
-    breatheScale: 0.6,
+    glowScale: 0.55,
+    animSpeedScale: 0.65,
+    peakScale: 0.72,
+    shadowScale: 0.55,
+    breatheScale: 0.55,
     aiDjMessage: 'Market calm detected. Focus Flow Mix active.',
   );
   static const MarketStateData bullish = MarketStateData(
     label: 'Bullish',
-    glowScale: 1.1,
+    glowScale: 1.0,
     animSpeedScale: 1.0,
     peakScale: 1.0,
     shadowScale: 1.0,
@@ -45,47 +50,48 @@ abstract class MarketStates {
   );
   static const MarketStateData breakout = MarketStateData(
     label: 'Breakout',
-    glowScale: 1.7,
-    animSpeedScale: 1.5,
-    peakScale: 1.35,
-    shadowScale: 1.5,
-    breatheScale: 1.4,
+    glowScale: 1.6,
+    animSpeedScale: 1.45,
+    peakScale: 1.3,
+    shadowScale: 1.4,
+    breatheScale: 1.35,
     aiDjMessage: 'Momentum breakout confirmed. Energy mix engaged.',
   );
   static const MarketStateData panic = MarketStateData(
     label: 'Panic',
-    glowScale: 1.9,
-    animSpeedScale: 1.8,
-    peakScale: 1.4,
-    shadowScale: 1.8,
-    breatheScale: 1.5,
+    glowScale: 1.8,
+    animSpeedScale: 1.75,
+    peakScale: 1.38,
+    shadowScale: 1.7,
+    breatheScale: 1.45,
     aiDjMessage: 'High volatility detected. Stabilization mode recommended.',
   );
   static const MarketStateData recovery = MarketStateData(
     label: 'Recovery',
-    glowScale: 0.7,
-    animSpeedScale: 0.65,
-    peakScale: 0.70,
-    shadowScale: 0.7,
-    breatheScale: 0.55,
+    glowScale: 0.65,
+    animSpeedScale: 0.60,
+    peakScale: 0.68,
+    shadowScale: 0.65,
+    breatheScale: 0.52,
     aiDjMessage: 'Market in recovery. Breath mode active. Stay grounded.',
   );
   static const MarketStateData riskOff = MarketStateData(
     label: 'Risk-Off',
-    glowScale: 0.8,
-    animSpeedScale: 0.8,
-    peakScale: 0.80,
-    shadowScale: 0.85,
-    breatheScale: 0.7,
+    glowScale: 0.75,
+    animSpeedScale: 0.78,
+    peakScale: 0.78,
+    shadowScale: 0.80,
+    breatheScale: 0.68,
     aiDjMessage: 'Risk-off environment. Low signal mode. Patience recommended.',
   );
-  static const List<MarketStateData> all = [
+
+  static const List<MarketStateData> all = <MarketStateData>[
     calm, bullish, breakout, panic, recovery, riskOff,
   ];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// AnalyticsData — Phase 6: adds insight line
+// AnalyticsData
 // ─────────────────────────────────────────────────────────────────────────────
 
 class AnalyticsData {
@@ -108,16 +114,16 @@ class AnalyticsData {
   final String mtfAlignment;
   final String aiMarketMood;
   final String fearGreedMini;
-  final String fearGreedLabel; // e.g. "Neutral", "Greed", "Fear"
+  final String fearGreedLabel;
   final String r1;
   final String now;
   final String s1;
   final String aiDjNote;
-  final String insight; // 2-line insight shown in analytics card
+  final String insight;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SessionMode — Phase 6: adds stationName
+// SessionMode
 // ─────────────────────────────────────────────────────────────────────────────
 
 class SessionMode {
@@ -143,7 +149,7 @@ class SessionMode {
   final String id;
   final String displayName;
   final String title;
-  final String stationName; // "Signal FM Radio" shown under title
+  final String stationName;
   final String subtitle;
   final String mood;
   final String btcDelta;
@@ -155,40 +161,57 @@ class SessionMode {
   final AnalyticsData analytics;
   final bool isDark;
   final List<Color> waveformColors;
+
+  /// 4 colors for AtmosphereLayer:
+  ///   [0] void base (matches backgroundColor),
+  ///   [1] primary orb (saturated accent),
+  ///   [2] secondary bloom,
+  ///   [3] rim/edge tint.
   final List<Color> atmosphereColors;
 
   bool get isNegativeDelta => btcDelta.startsWith('-');
 
-  Color get onBackground =>
-      isDark ? const Color(0xFFF0F2F5) : const Color(0xFF0F1623);
-  Color get onBackgroundMuted =>
-      isDark ? const Color(0xFF7A90A8) : const Color(0xFF556070);
-  Color get surfaceColor => isDark
-      ? Colors.white.withOpacity(0.07)
-      : Colors.white.withOpacity(0.70);
-  Color get surfaceBorder => isDark
-      ? Colors.white.withOpacity(0.10)
-      : Colors.white.withOpacity(0.86);
-  Color get accentGlow => primaryColor.withOpacity(0.24);
+  // ── Surface helpers ────────────────────────────────────────────────────────
 
-  // Bias chip color — derived from bias string
+  /// Crisp near-white primary text.
+  Color get onBackground => const Color(0xFFF5F6FA);
+
+  /// Muted secondary — clearly separated from primary.
+  Color get onBackgroundMuted => const Color(0xFF6B82A0);
+
+  /// Card fill: single translucent layer, no stacking.
+  Color get surfaceColor => Colors.white.withOpacity(0.06);
+
+  /// Hairline border — 0.13 for crisp 4K edge definition.
+  Color get surfaceBorder => Colors.white.withOpacity(0.13);
+
+  /// Top-edge highlight: simulates light on card top rim.
+  Color get surfaceTopHighlight => Colors.white.withOpacity(0.18);
+
+  /// Accent glow for card shadows.
+  Color get accentGlow => primaryColor.withOpacity(0.35);
+
+  /// Artwork ring glow — vivid core.
+  Color get artworkGlow => primaryColor.withOpacity(0.60);
+
   Color biasColor(String bias) {
-    final b = bias.toLowerCase();
-    if (b.contains('bull') || b.contains('risk-on')) {
-      return const Color(0xFF22C55E);
-    } else if (b.contains('bear') || b.contains('fear')) {
-      return const Color(0xFFEF4444);
+    final String b = bias.toLowerCase();
+    if (b.contains('bull') || b.contains('risk-on') || b.contains('on')) {
+      return const Color(0xFF23D96A);
     }
-    return const Color(0xFF94A3B8);
+    if (b.contains('bear') || b.contains('fear') || b.contains('panic')) {
+      return const Color(0xFFFF4D6A);
+    }
+    return const Color(0xFF8899BB);
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SignalFmSessions — Phase 6
+// SignalFmSessions
 // ─────────────────────────────────────────────────────────────────────────────
 
 abstract class SignalFmSessions {
-  // ── 1. London Open — dark elegant gold ────────────────────────────────────
+  // ── 1. London Open — luxury dark gold ─────────────────────────────────────
   static const SessionMode londonOpen = SessionMode(
     id: 'London Open',
     displayName: 'London Open',
@@ -198,17 +221,21 @@ abstract class SignalFmSessions {
     mood: 'Focused',
     btcDelta: '+1.32%',
     fearIndex: '64',
-    backgroundColor: Color(0xFF0D0F14),
-    primaryColor: Color(0xFFD4A843),
-    secondaryColor: Color(0xFF8B6914),
+    backgroundColor: Color(0xFF050608),
+    primaryColor: Color(0xFFEDC55A),
+    secondaryColor: Color(0xFF9A6E1A),
     quickModeIcon: Icons.wb_sunny_outlined,
     isDark: true,
-    waveformColors: [Color(0xFF8B6914), Color(0xFFD4A843), Color(0xFFF5C842)],
-    atmosphereColors: [
-      Color(0xFF0A0B0E),
-      Color(0xFF2A1F08),
-      Color(0xFF3D2A0A),
-      Color(0xFF0D0F14),
+    waveformColors: <Color>[
+      Color(0xFF6A4208),
+      Color(0xFFCC8E0A),
+      Color(0xFFFFD84A),
+    ],
+    atmosphereColors: <Color>[
+      Color(0xFF050608),
+      Color(0xFFEDC55A),
+      Color(0xFFB5780A),
+      Color(0xFF3A2206),
     ],
     analytics: AnalyticsData(
       bias: 'Bullish',
@@ -225,7 +252,7 @@ abstract class SignalFmSessions {
     ),
   );
 
-  // ── 2. NY Momentum — electric blue ────────────────────────────────────────
+  // ── 2. NY Momentum — electric cyber blue ──────────────────────────────────
   static const SessionMode nyMomentum = SessionMode(
     id: 'NY Momentum',
     displayName: 'NY Momentum',
@@ -235,17 +262,21 @@ abstract class SignalFmSessions {
     mood: 'High Momentum',
     btcDelta: '+2.48%',
     fearIndex: '72',
-    backgroundColor: Color(0xFF060E1C),
-    primaryColor: Color(0xFF00A3FF),
-    secondaryColor: Color(0xFF0057FF),
+    backgroundColor: Color(0xFF02060E),
+    primaryColor: Color(0xFF12B0FF),
+    secondaryColor: Color(0xFF0050CC),
     quickModeIcon: Icons.bolt_outlined,
     isDark: true,
-    waveformColors: [Color(0xFF004E8C), Color(0xFF0080D0), Color(0xFF00C2FF)],
-    atmosphereColors: [
-      Color(0xFF020810),
-      Color(0xFF002B5C),
-      Color(0xFF003F8A),
-      Color(0xFF001A3D),
+    waveformColors: <Color>[
+      Color(0xFF003080),
+      Color(0xFF0070CC),
+      Color(0xFF40D4FF),
+    ],
+    atmosphereColors: <Color>[
+      Color(0xFF02060E),
+      Color(0xFF12B0FF),
+      Color(0xFF0060D4),
+      Color(0xFF001440),
     ],
     analytics: AnalyticsData(
       bias: 'Strong Bull',
@@ -262,7 +293,7 @@ abstract class SignalFmSessions {
     ),
   );
 
-  // ── 3. Tokyo Night — purple neon calm ─────────────────────────────────────
+  // ── 3. Tokyo Night — vivid neon violet ────────────────────────────────────
   static const SessionMode tokyoNight = SessionMode(
     id: 'Tokyo Night',
     displayName: 'Tokyo Night',
@@ -272,17 +303,21 @@ abstract class SignalFmSessions {
     mood: 'Calm',
     btcDelta: '-0.35%',
     fearIndex: '58',
-    backgroundColor: Color(0xFF0D0620),
-    primaryColor: Color(0xFFB06CFF),
-    secondaryColor: Color(0xFF6D28D9),
+    backgroundColor: Color(0xFF04030C),
+    primaryColor: Color(0xFFB86AFF),
+    secondaryColor: Color(0xFF7228E0),
     quickModeIcon: Icons.nightlight_outlined,
     isDark: true,
-    waveformColors: [Color(0xFF4A1A80), Color(0xFF8B40D4), Color(0xFFCB9CFF)],
-    atmosphereColors: [
-      Color(0xFF080414),
-      Color(0xFF200840),
-      Color(0xFF1A0840),
-      Color(0xFF0C0520),
+    waveformColors: <Color>[
+      Color(0xFF38107A),
+      Color(0xFF8836E0),
+      Color(0xFFE08AFF),
+    ],
+    atmosphereColors: <Color>[
+      Color(0xFF04030C),
+      Color(0xFFB86AFF),
+      Color(0xFF7228E0),
+      Color(0xFF180438),
     ],
     analytics: AnalyticsData(
       bias: 'Neutral',
@@ -299,7 +334,7 @@ abstract class SignalFmSessions {
     ),
   );
 
-  // ── 4. Deep Focus — cyan/teal ─────────────────────────────────────────────
+  // ── 4. Deep Focus — premium cyan-teal ─────────────────────────────────────
   static const SessionMode deepFocus = SessionMode(
     id: 'Deep Focus',
     displayName: 'Deep Focus',
@@ -309,17 +344,21 @@ abstract class SignalFmSessions {
     mood: 'Focused',
     btcDelta: '+0.18%',
     fearIndex: '66',
-    backgroundColor: Color(0xFF050D14),
-    primaryColor: Color(0xFF00E5CC),
-    secondaryColor: Color(0xFF007A6E),
+    backgroundColor: Color(0xFF02080E),
+    primaryColor: Color(0xFF00E2D6),
+    secondaryColor: Color(0xFF007870),
     quickModeIcon: Icons.track_changes_outlined,
     isDark: true,
-    waveformColors: [Color(0xFF005C54), Color(0xFF00B8A0), Color(0xFF00FFE5)],
-    atmosphereColors: [
-      Color(0xFF030A10),
-      Color(0xFF002E28),
-      Color(0xFF004540),
-      Color(0xFF020608),
+    waveformColors: <Color>[
+      Color(0xFF004040),
+      Color(0xFF00A898),
+      Color(0xFF00F5E4),
+    ],
+    atmosphereColors: <Color>[
+      Color(0xFF02080E),
+      Color(0xFF00E2D6),
+      Color(0xFF008878),
+      Color(0xFF001420),
     ],
     analytics: AnalyticsData(
       bias: 'Neutral',
@@ -336,7 +375,7 @@ abstract class SignalFmSessions {
     ),
   );
 
-  // ── 5. Recovery Mode — green/soft ─────────────────────────────────────────
+  // ── 5. Recovery Mode — vivid emerald ──────────────────────────────────────
   static const SessionMode recoveryMode = SessionMode(
     id: 'Recovery Mode',
     displayName: 'Recovery Mode',
@@ -346,17 +385,21 @@ abstract class SignalFmSessions {
     mood: 'Recovering',
     btcDelta: '-1.37%',
     fearIndex: '61',
-    backgroundColor: Color(0xFF060E0A),
-    primaryColor: Color(0xFF34D399),
-    secondaryColor: Color(0xFF059669),
+    backgroundColor: Color(0xFF020805),
+    primaryColor: Color(0xFF18E895),
+    secondaryColor: Color(0xFF058858),
     quickModeIcon: Icons.self_improvement_outlined,
     isDark: true,
-    waveformColors: [Color(0xFF065F46), Color(0xFF10B981), Color(0xFF6EE7B7)],
-    atmosphereColors: [
-      Color(0xFF030A06),
-      Color(0xFF052A18),
-      Color(0xFF073D24),
-      Color(0xFF020608),
+    waveformColors: <Color>[
+      Color(0xFF044830),
+      Color(0xFF0EC876),
+      Color(0xFF60F5B0),
+    ],
+    atmosphereColors: <Color>[
+      Color(0xFF020805),
+      Color(0xFF18E895),
+      Color(0xFF068A5C),
+      Color(0xFF01180E),
     ],
     analytics: AnalyticsData(
       bias: 'Bearish',
@@ -373,12 +416,14 @@ abstract class SignalFmSessions {
     ),
   );
 
-  static const List<SessionMode> all = [
+  static const List<SessionMode> all = <SessionMode>[
     londonOpen, nyMomentum, tokyoNight, deepFocus, recoveryMode,
   ];
 
-  static SessionMode fromId(String id) => all.firstWhere(
-        (s) => s.id == id,
-        orElse: () => tokyoNight,
-      );
+  static SessionMode fromId(String id) {
+    return all.firstWhere(
+      (SessionMode s) => s.id == id,
+      orElse: () => tokyoNight,
+    );
+  }
 }

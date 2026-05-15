@@ -3,21 +3,8 @@ import 'package:flutter/material.dart';
 import '../../../shared/theme/signal_fm_theme.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// AiDjBar
-//
-// A single-line ambient intelligence readout shown above the bottom nav.
-// NOT a chatbot. NOT a notification. Just a calm, premium intelligence layer.
-//
-// Behavior:
-//   • On session or market state change, the message fades out then in with
-//     a slow typewriter reveal (character by character, no external deps).
-//   • The bar itself uses a frosted translucent surface — identical language
-//     to the rest of the card system.
-//   • A small "AI" monogram + session accent pulse sits to the left.
-//
-// The message text comes from MarketStateData.aiDjMessage (market-state-aware)
-// rather than session.analytics.aiDjNote (session-aware). Both exist; the
-// bar shows the market state message because it's the more dynamic layer.
+// AiDjBar — ambient AI intelligence readout above bottom nav
+// Dart compatibility: Dart 2.17+, no records, no abstract final class.
 // ─────────────────────────────────────────────────────────────────────────────
 
 class AiDjBar extends StatefulWidget {
@@ -57,7 +44,7 @@ class _AiDjBarState extends State<AiDjBar>
   @override
   void didUpdateWidget(AiDjBar old) {
     super.didUpdateWidget(old);
-    final newMsg = widget.marketState.aiDjMessage;
+    final String newMsg = widget.marketState.aiDjMessage;
     if (newMsg != _targetMessage) {
       _targetMessage = newMsg;
       _ctrl.reverse().then((_) {
@@ -80,8 +67,7 @@ class _AiDjBarState extends State<AiDjBar>
   void _revealNextChar() {
     if (!mounted) return;
     if (_charIndex >= _targetMessage.length) return;
-    // 28 ms per character — unhurried, premium pace
-    Future.delayed(const Duration(milliseconds: 28), () {
+    Future<void>.delayed(const Duration(milliseconds: 28), () {
       if (!mounted) return;
       setState(() {
         _charIndex++;
@@ -99,54 +85,51 @@ class _AiDjBarState extends State<AiDjBar>
 
   @override
   Widget build(BuildContext context) {
-    final mode = widget.mode;
+    final SessionMode mode = widget.mode;
     return FadeTransition(
       opacity: _fade,
       child: Container(
         margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
         decoration: BoxDecoration(
-          color: mode.surfaceColor,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: mode.surfaceBorder, width: 1),
-          boxShadow: [
+          color: Colors.white.withOpacity(0.06),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: Colors.white.withOpacity(0.13),
+            width: 1,
+          ),
+          boxShadow: <BoxShadow>[
             BoxShadow(
               color: mode.primaryColor.withOpacity(0.08),
-              blurRadius: 20,
-              offset: const Offset(0, 4),
+              blurRadius: 16,
+              offset: const Offset(0, 3),
             ),
           ],
         ),
         child: Row(
-          children: [
-            // ── AI monogram ────────────────────────────────────────────
+          children: <Widget>[
             _AiMonogram(mode: mode),
-
             const SizedBox(width: 12),
-
-            // ── Message ────────────────────────────────────────────────
             Expanded(
               child: Text(
                 _displayMessage,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 11,
                   fontStyle: FontStyle.italic,
-                  color: mode.onBackground,
+                  color: Color(0xFFD8E0F0),
                   letterSpacing: 0.2,
                   height: 1.3,
                 ),
               ),
             ),
-
             const SizedBox(width: 8),
-
-            // ── State label ────────────────────────────────────────────
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
               decoration: BoxDecoration(
-                color: mode.primaryColor.withOpacity(0.10),
+                color: mode.primaryColor.withOpacity(0.12),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
@@ -166,12 +149,9 @@ class _AiDjBarState extends State<AiDjBar>
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// _AiMonogram — "AI" text in a pulsing accent circle
-// ─────────────────────────────────────────────────────────────────────────────
-
 class _AiMonogram extends StatefulWidget {
   const _AiMonogram({required this.mode});
+
   final SessionMode mode;
 
   @override
@@ -203,35 +183,37 @@ class _AiMonogramState extends State<_AiMonogram>
 
   @override
   Widget build(BuildContext context) {
-    final mode = widget.mode;
+    final SessionMode mode = widget.mode;
     return AnimatedBuilder(
       animation: _scale,
-      builder: (_, __) => Transform.scale(
-        scale: _scale.value,
-        child: Container(
-          width: 28,
-          height: 28,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: mode.primaryColor.withOpacity(0.14),
-            border: Border.all(
-              color: mode.primaryColor.withOpacity(0.35),
-              width: 1,
+      builder: (BuildContext context, Widget? child) {
+        return Transform.scale(
+          scale: _scale.value,
+          child: Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: mode.primaryColor.withOpacity(0.14),
+              border: Border.all(
+                color: mode.primaryColor.withOpacity(0.35),
+                width: 1,
+              ),
             ),
-          ),
-          child: Center(
-            child: Text(
-              'AI',
-              style: TextStyle(
-                fontSize: 8,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.5,
-                color: mode.primaryColor,
+            child: Center(
+              child: Text(
+                'AI',
+                style: TextStyle(
+                  fontSize: 8,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.5,
+                  color: mode.primaryColor,
+                ),
               ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }

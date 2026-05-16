@@ -8,23 +8,23 @@ import 'widgets/album_player_card.dart';
 import 'widgets/atmosphere_painter.dart';
 import 'widgets/btc_strip.dart';
 import 'widgets/live_analytics_strip.dart';
+import 'widgets/market_feed_strip.dart';
 import 'widgets/quick_modes_row.dart';
 import 'widgets/signal_header.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// HomePage — Signal FM main screen
-// Dart compatibility: Dart 2.17+, no records, no abstract final class.
+// HomePage — Phase 7
 //
-// Layout order:
-//   ① Session selector pill + LIVE badge
-//   ② BTC strip with inline F&G mini
-//   ③ Album artwork + track info + waveform + controls
-//   ④ Live Analytics card
-//   ⑤ Price Map card
-//   ⑥ Quick Modes row
-//   ⑦ AI DJ bar + Bottom navigation
+// Layout (top → bottom):
+//   MarketFeedStrip      ← live instrument ticker (new)
+//   _TopBar              ← ADAPTIVE MODE pill (primary) + session override pill
+//   BtcStrip             ← BTC price + F&G inline
+//   AlbumPlayerCard      ← artwork + waveform + controls
+//   LiveAnalyticsStrip   ← 7-field cockpit + price map (now receives marketState)
+//   QuickModesRow        ← secondary / manual override label
+//   AiDjBar + BottomNav
 //
-// On all screen sizes: content centered, max-width 480px.
+// Dart 2.17+, no abstract final class, no records.
 // ─────────────────────────────────────────────────────────────────────────────
 
 class HomePage extends StatefulWidget {
@@ -38,7 +38,7 @@ class _HomePageState extends State<HomePage> {
   SessionMode _mode = SignalFmSessions.tokyoNight;
   SessionMode _prevMode = SignalFmSessions.tokyoNight;
   int _navIndex = 0;
-  int _marketStateIndex = 1; // bullish by default
+  int _marketStateIndex = 1; // bullish default
 
   MarketStateData get _marketState =>
       MarketStates.all[_marketStateIndex % MarketStates.all.length];
@@ -76,20 +76,15 @@ class _HomePageState extends State<HomePage> {
       builder: (BuildContext context, Color? bg, Widget? child) {
         return Stack(
           children: <Widget>[
-            // Deep background fill
             Positioned.fill(
-              child: ColoredBox(
-                color: bg ?? _mode.backgroundColor,
-              ),
+              child: ColoredBox(color: bg ?? _mode.backgroundColor),
             ),
-            // Living atmosphere orbs
             Positioned.fill(
               child: AtmosphereLayer(
                 mode: _mode,
                 marketState: _marketState,
               ),
             ),
-            // App scaffold (transparent bg — atmosphere shows through)
             Scaffold(
               backgroundColor: Colors.transparent,
               bottomNavigationBar: _BottomArea(
@@ -98,26 +93,33 @@ class _HomePageState extends State<HomePage> {
                 navIndex: _navIndex,
                 onNavTap: _onNavTap,
               ),
-              body: SafeArea(
-                child: LayoutBuilder(
-                  builder:
-                      (BuildContext context, BoxConstraints constraints) {
-                    return Center(
-                      child: ConstrainedBox(
-                        constraints:
-                            const BoxConstraints(maxWidth: 480),
-                        child: _PlayerColumn(
-                          mode: _mode,
-                          marketState: _marketState,
-                          onModeChanged: _onModeChanged,
-                          onBtcLongPress: _cycleMarketState,
-                          isWide: constraints.maxWidth >=
-                              AppBreakpoints.mobile,
-                        ),
-                      ),
-                    );
-                  },
-                ),
+              body: Column(
+                children: <Widget>[
+                  // Live feed ticker — always at very top, above SafeArea padding
+                  SafeArea(
+                    bottom: false,
+                    child: MarketFeedStrip(mode: _mode),
+                  ),
+                  // Scrollable player column
+                  Expanded(
+                    child: LayoutBuilder(
+                      builder: (BuildContext ctx, BoxConstraints bc) {
+                        return Center(
+                          child: ConstrainedBox(
+                            constraints:
+                                const BoxConstraints(maxWidth: 480),
+                            child: _PlayerColumn(
+                              mode: _mode,
+                              marketState: _marketState,
+                              onModeChanged: _onModeChanged,
+                              onMarketStateTap: _cycleMarketState,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -136,35 +138,44 @@ class _PlayerColumn extends StatelessWidget {
     required this.mode,
     required this.marketState,
     required this.onModeChanged,
-    required this.onBtcLongPress,
-    required this.isWide,
+    required this.onMarketStateTap,
   });
 
   final SessionMode mode;
   final MarketStateData marketState;
   final ValueChanged<SessionMode> onModeChanged;
-  final VoidCallback onBtcLongPress;
-  final bool isWide;
+  final VoidCallback onMarketStateTap;
 
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          _SessionSelectorBar(mode: mode, onModeChanged: onModeChanged),
-          const SizedBox(height: 10),
-          GestureDetector(
-            onLongPress: onBtcLongPress,
-            child: BtcStrip(mode: mode),
+          // ① Adaptive mode bar (primary) + session override
+          _TopBar(
+            mode: mode,
+            marketState: marketState,
+            onModeChanged: onModeChanged,
+            onMarketStateTap: onMarketStateTap,
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 10),
+
+          // ② BTC strip
+          BtcStrip(mode: mode),
+          const SizedBox(height: 12),
+
+          // ③ Hero player
           AlbumPlayerCard(mode: mode, marketState: marketState),
-          const SizedBox(height: 14),
-          LiveAnalyticsStrip(mode: mode),
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
+
+          // ④ Market intelligence cockpit
+          LiveAnalyticsStrip(mode: mode, marketState: marketState),
+          const SizedBox(height: 12),
+
+          // ⑤ Quick modes — secondary / manual override
           QuickModesRow(activeMode: mode, onModeChanged: onModeChanged),
           const SizedBox(height: 8),
         ],
@@ -174,32 +185,46 @@ class _PlayerColumn extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// _SessionSelectorBar
+// _TopBar
+//
+// Left:  ADAPTIVE MODE pill — primary product concept
+// Right: session override pill (secondary) + LIVE badge
+//
+// Hierarchy: Adaptive Mode is the product. Session selector is manual override.
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _SessionSelectorBar extends StatelessWidget {
-  const _SessionSelectorBar({
+class _TopBar extends StatelessWidget {
+  const _TopBar({
     required this.mode,
+    required this.marketState,
     required this.onModeChanged,
+    required this.onMarketStateTap,
   });
 
   final SessionMode mode;
+  final MarketStateData marketState;
   final ValueChanged<SessionMode> onModeChanged;
+  final VoidCallback onMarketStateTap;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: <Widget>[
+        // ── ADAPTIVE MODE — primary pill ─────────────────────────────
+        _AdaptiveModePill(mode: mode, marketState: marketState),
+
+        const SizedBox(width: 8),
+
+        // ── Session override — secondary, smaller ────────────────────
         GestureDetector(
-          onTap: () => _showSessionPicker(context),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 220),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          onTap: () => _showPicker(context),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.06),
-              borderRadius: BorderRadius.circular(20),
+              color: Colors.white.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(18),
               border: Border.all(
-                color: Colors.white.withOpacity(0.13),
+                color: Colors.white.withOpacity(0.12),
                 width: 1,
               ),
             ),
@@ -207,37 +232,37 @@ class _SessionSelectorBar extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
                 Icon(mode.quickModeIcon,
-                    size: 13, color: mode.primaryColor),
-                const SizedBox(width: 6),
+                    size: 11, color: mode.onBackgroundMuted),
+                const SizedBox(width: 5),
                 AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 220),
+                  duration: const Duration(milliseconds: 200),
                   child: Text(
                     mode.displayName,
                     key: ValueKey<String>(mode.id),
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFFF5F6FA),
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      color: mode.onBackgroundMuted,
                     ),
                   ),
                 ),
-                const SizedBox(width: 4),
-                const Icon(
-                  Icons.keyboard_arrow_down_rounded,
-                  size: 14,
-                  color: Color(0xFF6B82A0),
-                ),
+                const SizedBox(width: 3),
+                Icon(Icons.keyboard_arrow_down_rounded,
+                    size: 12, color: mode.onBackgroundMuted),
               ],
             ),
           ),
         ),
+
         const Spacer(),
+
+        // ── LIVE badge ───────────────────────────────────────────────
         _LiveBadge(mode: mode),
       ],
     );
   }
 
-  void _showSessionPicker(BuildContext context) {
+  void _showPicker(BuildContext context) {
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
@@ -245,6 +270,120 @@ class _SessionSelectorBar extends StatelessWidget {
         mode: mode,
         onModeChanged: onModeChanged,
       ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// _AdaptiveModePill — the primary system indicator
+// Tapping cycles market state (demo). Phase 8: driven by AI engine.
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _AdaptiveModePill extends StatefulWidget {
+  const _AdaptiveModePill({required this.mode, required this.marketState});
+
+  final SessionMode mode;
+  final MarketStateData marketState;
+
+  @override
+  State<_AdaptiveModePill> createState() => _AdaptiveModePillState();
+}
+
+class _AdaptiveModePillState extends State<_AdaptiveModePill>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _pulse;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    )..repeat(reverse: true);
+    _pulse = Tween<double>(begin: 0.5, end: 1.0).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final SessionMode mode = widget.mode;
+    final MarketStateData ms = widget.marketState;
+
+    return AnimatedBuilder(
+      animation: _pulse,
+      builder: (BuildContext context, Widget? child) {
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+          decoration: BoxDecoration(
+            // Stronger visual weight than session override pill
+            color: mode.primaryColor.withOpacity(0.12),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: mode.primaryColor
+                  .withOpacity(0.30 + _pulse.value * 0.12),
+              width: 1.2,
+            ),
+            boxShadow: <BoxShadow>[
+              BoxShadow(
+                color: mode.primaryColor
+                    .withOpacity(0.12 + _pulse.value * 0.08),
+                blurRadius: 10,
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              // Pulsing dot
+              Container(
+                width: 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: mode.primaryColor.withOpacity(_pulse.value),
+                ),
+              ),
+              const SizedBox(width: 6),
+              const Text(
+                'ADAPTIVE',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.5,
+                  color: Color(0xFFF5F6FA),
+                ),
+              ),
+              const SizedBox(width: 6),
+              // State chip inline
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                decoration: BoxDecoration(
+                  color: ms.stateColor.withOpacity(0.18),
+                  borderRadius: BorderRadius.circular(5),
+                ),
+                child: Text(
+                  ms.label,
+                  style: TextStyle(
+                    fontSize: 8,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.4,
+                    color: ms.stateColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -292,12 +431,12 @@ class _LiveBadgeState extends State<_LiveBadge>
       builder: (BuildContext context, Widget? child) {
         return Container(
           padding:
-              const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
           decoration: BoxDecoration(
-            color: widget.mode.primaryColor.withOpacity(0.12),
-            borderRadius: BorderRadius.circular(20),
+            color: widget.mode.primaryColor.withOpacity(0.10),
+            borderRadius: BorderRadius.circular(18),
             border: Border.all(
-              color: widget.mode.primaryColor.withOpacity(0.30),
+              color: widget.mode.primaryColor.withOpacity(0.26),
               width: 1,
             ),
           ),
@@ -306,9 +445,8 @@ class _LiveBadgeState extends State<_LiveBadge>
             children: <Widget>[
               Icon(
                 Icons.diamond_outlined,
-                size: 10,
-                color: widget.mode.primaryColor
-                    .withOpacity(_pulse.value),
+                size: 9,
+                color: widget.mode.primaryColor.withOpacity(_pulse.value),
               ),
               const SizedBox(width: 4),
               Text(
@@ -346,7 +484,7 @@ class _SessionPickerSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.fromLTRB(12, 0, 12, 24),
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
       decoration: BoxDecoration(
         color: Color.lerp(mode.backgroundColor, Colors.white, 0.06),
         borderRadius: BorderRadius.circular(24),
@@ -369,39 +507,46 @@ class _SessionPickerSheet extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 14),
-          const Text(
-            'Select Session',
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-              color: Color(0xFFF5F6FA),
-            ),
+          const SizedBox(height: 12),
+          Row(
+            children: const <Widget>[
+              Text(
+                'Manual Override',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFFF5F6FA),
+                ),
+              ),
+              SizedBox(width: 8),
+              Text(
+                '— Adaptive Mode will resume',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Color(0xFF6B82A0),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 12),
-          ...SignalFmSessions.all.map(
-            (SessionMode session) => ListTile(
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 4,
-                vertical: 2,
-              ),
+          ...SignalFmSessions.all.map((SessionMode session) {
+            return ListTile(
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
               leading: Container(
-                width: 36,
-                height: 36,
+                width: 34,
+                height: 34,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: session.primaryColor.withOpacity(0.15),
+                  color: session.primaryColor.withOpacity(0.14),
                 ),
-                child: Icon(
-                  session.quickModeIcon,
-                  size: 16,
-                  color: session.primaryColor,
-                ),
+                child: Icon(session.quickModeIcon,
+                    size: 15, color: session.primaryColor),
               ),
               title: Text(
                 session.displayName,
                 style: TextStyle(
-                  fontSize: 14,
+                  fontSize: 13,
                   fontWeight: session.id == mode.id
                       ? FontWeight.w700
                       : FontWeight.w500,
@@ -413,20 +558,18 @@ class _SessionPickerSheet extends StatelessWidget {
               subtitle: Text(
                 session.subtitle,
                 style: const TextStyle(
-                  fontSize: 11,
-                  color: Color(0xFF6B82A0),
-                ),
+                    fontSize: 10, color: Color(0xFF6B82A0)),
               ),
               trailing: session.id == mode.id
                   ? Icon(Icons.check_rounded,
-                      size: 16, color: mode.primaryColor)
+                      size: 14, color: mode.primaryColor)
                   : null,
               onTap: () {
                 onModeChanged(session);
                 Navigator.of(context).pop();
               },
-            ),
-          ),
+            );
+          }),
         ],
       ),
     );
@@ -434,7 +577,7 @@ class _SessionPickerSheet extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// _BottomArea — AI DJ bar + bottom nav
+// _BottomArea — AiDjBar + BottomNav
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _BottomArea extends StatelessWidget {
@@ -461,7 +604,7 @@ class _BottomArea extends StatelessWidget {
         color: barBg,
         border: Border(
           top: BorderSide(
-            color: Colors.white.withOpacity(0.13),
+            color: Colors.white.withOpacity(0.10),
             width: 1,
           ),
         ),
@@ -496,8 +639,8 @@ class _BottomArea extends StatelessWidget {
               ),
               BottomNavigationBarItem(
                 icon: Container(
-                  width: 44,
-                  height: 44,
+                  width: 42,
+                  height: 42,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     gradient: LinearGradient(
@@ -512,14 +655,13 @@ class _BottomArea extends StatelessWidget {
                       BoxShadow(
                         color: mode.primaryColor.withOpacity(0.40),
                         blurRadius: 12,
-                        spreadRadius: 0,
                       ),
                     ],
                   ),
                   child: const Icon(
                     Icons.graphic_eq_rounded,
                     color: Colors.white,
-                    size: 20,
+                    size: 19,
                   ),
                 ),
                 label: 'Player',

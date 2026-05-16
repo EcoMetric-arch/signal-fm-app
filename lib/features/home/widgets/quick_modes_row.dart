@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import '../../../shared/theme/signal_fm_theme.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// QuickModesRow — 5 session chips with header
-// Dart compatibility: Dart 2.17+, no records, no abstract final class.
+// QuickModesRow — Phase 7: labelled as "MANUAL OVERRIDE"
+//
+// Adaptive Mode is the primary system. This row lets users override it.
+// The label change communicates that hierarchy without changing functionality.
 // ─────────────────────────────────────────────────────────────────────────────
 
 class QuickModesRow extends StatelessWidget {
@@ -25,32 +27,49 @@ class QuickModesRow extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: <Widget>[
-            Text(
-              'QUICK MODES',
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.8,
-                color: activeMode.onBackgroundMuted,
-              ),
-            ),
-            Text(
-              'View all',
-              style: TextStyle(
-                fontSize: 10,
-                color: activeMode.primaryColor,
-                fontWeight: FontWeight.w500,
-              ),
+            Row(
+              children: <Widget>[
+                Text(
+                  'MANUAL OVERRIDE',
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.8,
+                    color: activeMode.onBackgroundMuted,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 5, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.06),
+                    borderRadius: BorderRadius.circular(5),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.12),
+                      width: 1,
+                    ),
+                  ),
+                  child: const Text(
+                    'Adaptive resumes automatically',
+                    style: TextStyle(
+                      fontSize: 8,
+                      color: Color(0xFF6B82A0),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 9),
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           physics: const BouncingScrollPhysics(),
           child: Row(
             children: <Widget>[
-              for (final SessionMode session in SignalFmSessions.all) ...<Widget>[
+              for (final SessionMode session
+                  in SignalFmSessions.all) ...<Widget>[
                 _ModeChip(
                   session: session,
                   isActive: session.id == activeMode.id,
@@ -86,27 +105,24 @@ class _ModeChip extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
+        duration: const Duration(milliseconds: 200),
         curve: Curves.easeOut,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        constraints: const BoxConstraints(minWidth: 72),
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+        constraints: const BoxConstraints(minWidth: 68),
         decoration: BoxDecoration(
           color: isActive
-              ? accent.withOpacity(0.18)
-              : Colors.white.withOpacity(0.06),
-          borderRadius: BorderRadius.circular(14),
+              ? accent.withOpacity(0.16)
+              : Colors.white.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(13),
           border: Border.all(
-            color: isActive
-                ? accent
-                : Colors.white.withOpacity(0.13),
+            color: isActive ? accent : Colors.white.withOpacity(0.11),
             width: isActive ? 1.5 : 1.0,
           ),
           boxShadow: isActive
               ? <BoxShadow>[
                   BoxShadow(
-                    color: accent.withOpacity(0.30),
-                    blurRadius: 12,
-                    spreadRadius: 0,
+                    color: accent.withOpacity(0.25),
+                    blurRadius: 10,
                   ),
                 ]
               : null,
@@ -116,15 +132,15 @@ class _ModeChip extends StatelessWidget {
           children: <Widget>[
             Icon(
               session.quickModeIcon,
-              size: 18,
+              size: 17,
               color: isActive ? accent : activeMode.onBackgroundMuted,
             ),
-            const SizedBox(height: 5),
+            const SizedBox(height: 4),
             Text(
               session.displayName,
               textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: 10,
+                fontSize: 9,
                 fontWeight:
                     isActive ? FontWeight.w700 : FontWeight.w500,
                 color: isActive

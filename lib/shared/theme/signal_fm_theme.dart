@@ -1,12 +1,91 @@
 import 'package:flutter/material.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Dart compatibility: uses 'abstract class', NOT 'abstract final class'.
-// No Dart records syntax. Compatible with Dart 2.17+ / Flutter 3.x.
+// Dart compatibility: abstract class (NOT abstract final class). Dart 2.17+.
+// No Dart records syntax.
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ─────────────────────────────────────────────────────────────────────────────
-// MarketStateData
+// MarketFeedData — mock live feed row
+// Phase 7: Architecture-aligned. 8 instruments from spec.
+// Phase 8: Replace mock values with WebSocket feed.
+// ─────────────────────────────────────────────────────────────────────────────
+
+class MarketFeedItem {
+  const MarketFeedItem({
+    required this.symbol,
+    required this.value,
+    required this.delta,
+    required this.isPositive,
+  });
+
+  final String symbol;
+  final String value;
+  final String delta;
+  final bool isPositive;
+}
+
+abstract class MockMarketFeed {
+  /// Phase 7 mock values for the live feed strip.
+  /// Phase 8: replace with Stream<List<MarketFeedItem>> from WebSocket.
+  static List<MarketFeedItem> forSession(String sessionId) {
+    final bool bullish =
+        sessionId == 'NY Momentum' || sessionId == 'London Open';
+    return <MarketFeedItem>[
+      MarketFeedItem(
+        symbol: 'BTC',
+        value: '\$67,892',
+        delta: bullish ? '+2.1%' : '-0.4%',
+        isPositive: bullish,
+      ),
+      MarketFeedItem(
+        symbol: 'ETH',
+        value: '\$3,541',
+        delta: bullish ? '+1.8%' : '-0.6%',
+        isPositive: bullish,
+      ),
+      MarketFeedItem(
+        symbol: 'TOTAL3',
+        value: '\$612B',
+        delta: bullish ? '+2.4%' : '-1.1%',
+        isPositive: bullish,
+      ),
+      MarketFeedItem(
+        symbol: 'BTC.D',
+        value: '54.2%',
+        delta: '+0.3%',
+        isPositive: true,
+      ),
+      MarketFeedItem(
+        symbol: 'FUND',
+        value: '0.012%',
+        delta: bullish ? '+' : '-',
+        isPositive: bullish,
+      ),
+      MarketFeedItem(
+        symbol: 'OI',
+        value: '\$18.4B',
+        delta: bullish ? '+3.2%' : '-1.4%',
+        isPositive: bullish,
+      ),
+      MarketFeedItem(
+        symbol: 'F&G',
+        value: bullish ? '72' : '48',
+        delta: bullish ? 'Greed' : 'Neutral',
+        isPositive: bullish,
+      ),
+      MarketFeedItem(
+        symbol: 'VOL',
+        value: bullish ? 'HIGH' : 'LOW',
+        delta: '',
+        isPositive: bullish,
+      ),
+    ];
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MarketStateData — Phase 7: adds aiDjEngineNote (what the engine is doing)
 // ─────────────────────────────────────────────────────────────────────────────
 
 class MarketStateData {
@@ -18,6 +97,8 @@ class MarketStateData {
     required this.shadowScale,
     required this.breatheScale,
     required this.aiDjMessage,
+    required this.aiDjEngineNote,
+    required this.stateColor,
   });
 
   final String label;
@@ -26,63 +107,89 @@ class MarketStateData {
   final double peakScale;
   final double shadowScale;
   final double breatheScale;
+
+  /// Short ambient message shown in AiDjBar.
   final String aiDjMessage;
+
+  /// Technical engine note — what the AI DJ is actually doing.
+  /// Example: "Reducing ambience density. Focus layer active."
+  final String aiDjEngineNote;
+
+  /// Visual color for the state chip.
+  final Color stateColor;
 }
 
 abstract class MarketStates {
   static const MarketStateData calm = MarketStateData(
-    label: 'Calm',
+    label: 'CALM',
     glowScale: 0.55,
     animSpeedScale: 0.65,
     peakScale: 0.72,
     shadowScale: 0.55,
     breatheScale: 0.55,
     aiDjMessage: 'Market calm detected. Focus Flow Mix active.',
+    aiDjEngineNote: 'Low volatility. Reducing ambience density. Breath layer on.',
+    stateColor: Color(0xFF8899BB),
   );
+
   static const MarketStateData bullish = MarketStateData(
-    label: 'Bullish',
+    label: 'BULLISH',
     glowScale: 1.0,
     animSpeedScale: 1.0,
     peakScale: 1.0,
     shadowScale: 1.0,
     breatheScale: 1.0,
     aiDjMessage: 'Momentum confirmed. Adaptive groove locked in.',
+    aiDjEngineNote: 'Momentum active. Energy layers scaling. Pulse aligned.',
+    stateColor: Color(0xFF23D96A),
   );
+
   static const MarketStateData breakout = MarketStateData(
-    label: 'Breakout',
+    label: 'BREAKOUT',
     glowScale: 1.6,
     animSpeedScale: 1.45,
     peakScale: 1.3,
     shadowScale: 1.4,
     breatheScale: 1.35,
     aiDjMessage: 'Momentum breakout confirmed. Energy mix engaged.',
+    aiDjEngineNote: 'Breakout detected. Max energy. Particle speed elevated.',
+    stateColor: Color(0xFFF59E0B),
   );
+
   static const MarketStateData panic = MarketStateData(
-    label: 'Panic',
+    label: 'PANIC',
     glowScale: 1.8,
     animSpeedScale: 1.75,
     peakScale: 1.38,
     shadowScale: 1.7,
     breatheScale: 1.45,
     aiDjMessage: 'High volatility detected. Stabilization mode recommended.',
+    aiDjEngineNote: 'Volatility rising. Stabilization layer active. Glow at max.',
+    stateColor: Color(0xFFFF4D6A),
   );
+
   static const MarketStateData recovery = MarketStateData(
-    label: 'Recovery',
+    label: 'RECOVERY',
     glowScale: 0.65,
     animSpeedScale: 0.60,
     peakScale: 0.68,
     shadowScale: 0.65,
     breatheScale: 0.52,
     aiDjMessage: 'Market in recovery. Breath mode active. Stay grounded.',
+    aiDjEngineNote: 'Recovery phase. Ambience softening. Slow pulse engaged.',
+    stateColor: Color(0xFF34D399),
   );
+
   static const MarketStateData riskOff = MarketStateData(
-    label: 'Risk-Off',
+    label: 'RISK-OFF',
     glowScale: 0.75,
     animSpeedScale: 0.78,
     peakScale: 0.78,
     shadowScale: 0.80,
     breatheScale: 0.68,
     aiDjMessage: 'Risk-off environment. Low signal mode. Patience recommended.',
+    aiDjEngineNote: 'Risk-off signal. Dimming layers. Minimal pulse mode.',
+    stateColor: Color(0xFF6B82A0),
   );
 
   static const List<MarketStateData> all = <MarketStateData>[
@@ -91,7 +198,9 @@ abstract class MarketStates {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// AnalyticsData
+// AnalyticsData — Phase 7: expanded to full market cockpit
+// New fields: funding, openInterest, btcDominance, atr, marketState
+// Phase 8: all fields become live-feed values
 // ─────────────────────────────────────────────────────────────────────────────
 
 class AnalyticsData {
@@ -102,9 +211,17 @@ class AnalyticsData {
     required this.aiMarketMood,
     required this.fearGreedMini,
     required this.fearGreedLabel,
+    // Phase 7 new cockpit fields
+    required this.funding,
+    required this.openInterest,
+    required this.btcDominance,
+    required this.atr,
+    required this.marketStateName,
+    // Price map
     required this.r1,
     required this.now,
     required this.s1,
+    // AI
     required this.aiDjNote,
     required this.insight,
   });
@@ -115,15 +232,26 @@ class AnalyticsData {
   final String aiMarketMood;
   final String fearGreedMini;
   final String fearGreedLabel;
+
+  // Phase 7 market cockpit fields
+  final String funding;       // e.g. "+0.012%"
+  final String openInterest;  // e.g. "$18.4B"
+  final String btcDominance;  // e.g. "54.2%"
+  final String atr;           // e.g. "$1,240"
+  final String marketStateName; // e.g. "BULLISH"
+
+  // Price map
   final String r1;
   final String now;
   final String s1;
+
+  // AI
   final String aiDjNote;
   final String insight;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SessionMode
+// SessionMode — unchanged structure, analytics expanded
 // ─────────────────────────────────────────────────────────────────────────────
 
 class SessionMode {
@@ -161,37 +289,16 @@ class SessionMode {
   final AnalyticsData analytics;
   final bool isDark;
   final List<Color> waveformColors;
-
-  /// 4 colors for AtmosphereLayer:
-  ///   [0] void base (matches backgroundColor),
-  ///   [1] primary orb (saturated accent),
-  ///   [2] secondary bloom,
-  ///   [3] rim/edge tint.
   final List<Color> atmosphereColors;
 
   bool get isNegativeDelta => btcDelta.startsWith('-');
 
-  // ── Surface helpers ────────────────────────────────────────────────────────
-
-  /// Crisp near-white primary text.
   Color get onBackground => const Color(0xFFF5F6FA);
-
-  /// Muted secondary — clearly separated from primary.
   Color get onBackgroundMuted => const Color(0xFF6B82A0);
-
-  /// Card fill: single translucent layer, no stacking.
   Color get surfaceColor => Colors.white.withOpacity(0.06);
-
-  /// Hairline border — 0.13 for crisp 4K edge definition.
   Color get surfaceBorder => Colors.white.withOpacity(0.13);
-
-  /// Top-edge highlight: simulates light on card top rim.
   Color get surfaceTopHighlight => Colors.white.withOpacity(0.18);
-
-  /// Accent glow for card shadows.
   Color get accentGlow => primaryColor.withOpacity(0.35);
-
-  /// Artwork ring glow — vivid core.
   Color get artworkGlow => primaryColor.withOpacity(0.60);
 
   Color biasColor(String bias) {
@@ -207,11 +314,11 @@ class SessionMode {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SignalFmSessions
+// SignalFmSessions — Phase 7: all AnalyticsData expanded with new fields
 // ─────────────────────────────────────────────────────────────────────────────
 
 abstract class SignalFmSessions {
-  // ── 1. London Open — luxury dark gold ─────────────────────────────────────
+  // ── 1. London Open ─────────────────────────────────────────────────────────
   static const SessionMode londonOpen = SessionMode(
     id: 'London Open',
     displayName: 'London Open',
@@ -227,15 +334,10 @@ abstract class SignalFmSessions {
     quickModeIcon: Icons.wb_sunny_outlined,
     isDark: true,
     waveformColors: <Color>[
-      Color(0xFF6A4208),
-      Color(0xFFCC8E0A),
-      Color(0xFFFFD84A),
+      Color(0xFF6A4208), Color(0xFFCC8E0A), Color(0xFFFFD84A),
     ],
     atmosphereColors: <Color>[
-      Color(0xFF050608),
-      Color(0xFFEDC55A),
-      Color(0xFFB5780A),
-      Color(0xFF3A2206),
+      Color(0xFF050608), Color(0xFFEDC55A), Color(0xFFB5780A), Color(0xFF3A2206),
     ],
     analytics: AnalyticsData(
       bias: 'Bullish',
@@ -244,6 +346,11 @@ abstract class SignalFmSessions {
       aiMarketMood: 'Risk-On',
       fearGreedMini: '64',
       fearGreedLabel: 'Focused',
+      funding: '+0.012%',
+      openInterest: '\$18.4B',
+      btcDominance: '54.2%',
+      atr: '\$1,240',
+      marketStateName: 'BULLISH',
       r1: r'$68,400',
       now: r'$67,892',
       s1: r'$66,100',
@@ -252,7 +359,7 @@ abstract class SignalFmSessions {
     ),
   );
 
-  // ── 2. NY Momentum — electric cyber blue ──────────────────────────────────
+  // ── 2. NY Momentum ─────────────────────────────────────────────────────────
   static const SessionMode nyMomentum = SessionMode(
     id: 'NY Momentum',
     displayName: 'NY Momentum',
@@ -268,15 +375,10 @@ abstract class SignalFmSessions {
     quickModeIcon: Icons.bolt_outlined,
     isDark: true,
     waveformColors: <Color>[
-      Color(0xFF003080),
-      Color(0xFF0070CC),
-      Color(0xFF40D4FF),
+      Color(0xFF003080), Color(0xFF0070CC), Color(0xFF40D4FF),
     ],
     atmosphereColors: <Color>[
-      Color(0xFF02060E),
-      Color(0xFF12B0FF),
-      Color(0xFF0060D4),
-      Color(0xFF001440),
+      Color(0xFF02060E), Color(0xFF12B0FF), Color(0xFF0060D4), Color(0xFF001440),
     ],
     analytics: AnalyticsData(
       bias: 'Strong Bull',
@@ -285,6 +387,11 @@ abstract class SignalFmSessions {
       aiMarketMood: 'Risk-On',
       fearGreedMini: '72',
       fearGreedLabel: 'Greed',
+      funding: '+0.031%',
+      openInterest: '\$22.1B',
+      btcDominance: '53.8%',
+      atr: '\$1,890',
+      marketStateName: 'BREAKOUT',
       r1: r'$69,500',
       now: r'$67,892',
       s1: r'$66,800',
@@ -293,7 +400,7 @@ abstract class SignalFmSessions {
     ),
   );
 
-  // ── 3. Tokyo Night — vivid neon violet ────────────────────────────────────
+  // ── 3. Tokyo Night ─────────────────────────────────────────────────────────
   static const SessionMode tokyoNight = SessionMode(
     id: 'Tokyo Night',
     displayName: 'Tokyo Night',
@@ -309,15 +416,10 @@ abstract class SignalFmSessions {
     quickModeIcon: Icons.nightlight_outlined,
     isDark: true,
     waveformColors: <Color>[
-      Color(0xFF38107A),
-      Color(0xFF8836E0),
-      Color(0xFFE08AFF),
+      Color(0xFF38107A), Color(0xFF8836E0), Color(0xFFE08AFF),
     ],
     atmosphereColors: <Color>[
-      Color(0xFF04030C),
-      Color(0xFFB86AFF),
-      Color(0xFF7228E0),
-      Color(0xFF180438),
+      Color(0xFF04030C), Color(0xFFB86AFF), Color(0xFF7228E0), Color(0xFF180438),
     ],
     analytics: AnalyticsData(
       bias: 'Neutral',
@@ -326,6 +428,11 @@ abstract class SignalFmSessions {
       aiMarketMood: 'Cautious',
       fearGreedMini: '58',
       fearGreedLabel: 'Neutral',
+      funding: '+0.005%',
+      openInterest: '\$16.8B',
+      btcDominance: '54.5%',
+      atr: '\$820',
+      marketStateName: 'CALM',
       r1: r'$83,200',
       now: r'$67,892',
       s1: r'$80,800',
@@ -334,7 +441,7 @@ abstract class SignalFmSessions {
     ),
   );
 
-  // ── 4. Deep Focus — premium cyan-teal ─────────────────────────────────────
+  // ── 4. Deep Focus ──────────────────────────────────────────────────────────
   static const SessionMode deepFocus = SessionMode(
     id: 'Deep Focus',
     displayName: 'Deep Focus',
@@ -350,15 +457,10 @@ abstract class SignalFmSessions {
     quickModeIcon: Icons.track_changes_outlined,
     isDark: true,
     waveformColors: <Color>[
-      Color(0xFF004040),
-      Color(0xFF00A898),
-      Color(0xFF00F5E4),
+      Color(0xFF004040), Color(0xFF00A898), Color(0xFF00F5E4),
     ],
     atmosphereColors: <Color>[
-      Color(0xFF02080E),
-      Color(0xFF00E2D6),
-      Color(0xFF008878),
-      Color(0xFF001420),
+      Color(0xFF02080E), Color(0xFF00E2D6), Color(0xFF008878), Color(0xFF001420),
     ],
     analytics: AnalyticsData(
       bias: 'Neutral',
@@ -367,6 +469,11 @@ abstract class SignalFmSessions {
       aiMarketMood: 'Calm',
       fearGreedMini: '66',
       fearGreedLabel: 'Greed',
+      funding: '+0.008%',
+      openInterest: '\$17.2B',
+      btcDominance: '54.0%',
+      atr: '\$680',
+      marketStateName: 'CALM',
       r1: r'$68,300',
       now: r'$67,892',
       s1: r'$67,500',
@@ -375,7 +482,7 @@ abstract class SignalFmSessions {
     ),
   );
 
-  // ── 5. Recovery Mode — vivid emerald ──────────────────────────────────────
+  // ── 5. Recovery Mode ───────────────────────────────────────────────────────
   static const SessionMode recoveryMode = SessionMode(
     id: 'Recovery Mode',
     displayName: 'Recovery Mode',
@@ -391,15 +498,10 @@ abstract class SignalFmSessions {
     quickModeIcon: Icons.self_improvement_outlined,
     isDark: true,
     waveformColors: <Color>[
-      Color(0xFF044830),
-      Color(0xFF0EC876),
-      Color(0xFF60F5B0),
+      Color(0xFF044830), Color(0xFF0EC876), Color(0xFF60F5B0),
     ],
     atmosphereColors: <Color>[
-      Color(0xFF020805),
-      Color(0xFF18E895),
-      Color(0xFF068A5C),
-      Color(0xFF01180E),
+      Color(0xFF020805), Color(0xFF18E895), Color(0xFF068A5C), Color(0xFF01180E),
     ],
     analytics: AnalyticsData(
       bias: 'Bearish',
@@ -408,6 +510,11 @@ abstract class SignalFmSessions {
       aiMarketMood: 'Cautious',
       fearGreedMini: '61',
       fearGreedLabel: 'Neutral',
+      funding: '-0.004%',
+      openInterest: '\$14.6B',
+      btcDominance: '55.1%',
+      atr: '\$1,540',
+      marketStateName: 'RECOVERY',
       r1: r'$83,600',
       now: r'$67,892',
       s1: r'$80,900',
